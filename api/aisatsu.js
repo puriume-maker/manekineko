@@ -1,5 +1,5 @@
 // いらっしゃい：その場の様子（時間・残り数・さっきのセリフ）から、毎回ちがうひとこと
-import { client, MODEL, NEKO, shopOK, textOf } from "./_claude.js";
+import { client, FAST_MODEL, NEKO, shopOK, textOf } from "./_claude.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -18,12 +18,10 @@ export default async function handler(req, res) {
   };
 
   try {
-    const message = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 2000,
+    const message = await client.messages.create({
+      model: FAST_MODEL,
+      max_tokens: 1000,
       output_config: { effort: "low" },
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
       system: NEKO,
       messages: [{
         role: "user",

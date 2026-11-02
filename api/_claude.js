@@ -3,7 +3,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 export const client = new Anthropic();
-export const MODEL = "claude-opus-5-5";
+export const MODEL = "claude-opus-5-5";        // 日報・品札：じっくり考えるところ
+export const FAST_MODEL = "claude-haiku-5-5";  // あいさつ・お話し：すぐ返したいところ（えみ決定 11/2）
 
 // 招き猫の人柄。全部の呼び出しで同じ文章を使う（キャッシュが効くように変えない）
 export const NEKO = `あなたは、庭先の小さな無人販売所で店番をしている招き猫です。
