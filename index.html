@@ -432,6 +432,20 @@ async function prepareGreeting() {
     readyAt = Date.now();
   } finally { preparing = false; }
 }
+// お礼も同じく先に作っておく（金額に触れない、どの買い物にも使える一言）
+let readyThanks = null, preparingThanks = false;
+async function prepareThanks() {
+  if (preparingThanks) return;
+  preparingThanks = true;
+  try {
+    const line = await askNeko("thanks");
+    if (!line) return;
+    const url = await makeVoice(plain(line));
+    if (readyThanks?.url) URL.revokeObjectURL(readyThanks.url);
+    readyThanks = { text: line, url };
+  } finally { preparingThanks = false; }
+}
+
 // 時間がたったら（朝→昼など）作り直す
 setInterval(() => { if (shopOpen && (!ready || Date.now() - readyAt > 15 * 60 * 1000)) prepareGreeting(); }, 60 * 1000);
 
@@ -496,12 +510,13 @@ document.getElementById("paid").onclick = () => {
   render();
   const c = document.getElementById("cat");
   c.classList.remove("wave"); void c.offsetWidth; c.classList.add("wave");
-  say(`${t}円、ありがとさん。`, false);
-  askNeko("thanks", { cart: { 品: bought.map(b => `${b.name}×${b.n}`), 合計: t } }).then(async line => {
-    const text = line || `${t}円、ありがとさん。<br>おいしぐ食べでけれな。まだ来てけれ。`;
-    await say(text); remember(text);
-    prepareGreeting(); // 残りの数が変わったので、次のあいさつを作り直す
-  });
+  // お礼は先に作っておいた声をすぐ鳴らす（金額は字だけで見せる）
+  const th = readyThanks; readyThanks = null;
+  const thText = th?.text || FIXED.arigato;
+  say(`<b>${t}円</b>、たしかに。<br>${thText}`, true, th?.url ?? fixedVoice.arigato ?? null);
+  remember(thText);
+  // 残りの数が変わったので、次のあいさつとお礼を少ししてから作り直す
+  setTimeout(() => { prepareGreeting(); prepareThanks(); }, 8000);
 };
 
 // ---------- 寝る・起きる ----------
@@ -517,9 +532,11 @@ let visit = { active: false, tapped: false, called: false };
 const FIXED = {
   matte: "あっ、待ってけれ〜！お代、まだだよ〜。箱さ入れで、ボタン押してけれな。",
   mata: "まだ来てけれな〜。買う時は、画面さわってけれな。",
+  yogu: "よぐ来たなぁ。ゆっくり見でってけれ。",
+  arigato: "ありがとさん。おいしぐ食べでけれな。",
 };
 const fixedVoice = {};
-async function prepareFixedVoices() { for (const k in FIXED) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
+async function prepareFixedVoices() { for (const k of ["yogu", "arigato", "matte", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
 setInterval(() => {
   if (!cameraOn || asleep || !visit.active) return;
   const now = Date.now();
@@ -554,8 +571,8 @@ function wake(byMotion) {
     say(g.text, true, g.url); remember(g.text);
     setTimeout(prepareGreeting, 20 * 1000); // 次のお客さんの分を、少ししてから作っておく
   } else {
-    bubble.innerHTML = "……ん？";
-    askNeko("greet").then(line => { const text = line || greeting(); say(text); remember(text); });
+    say(FIXED.yogu, true, fixedVoice.yogu ?? null);
+    prepareGreeting();
   }
 }
 sleepEl.addEventListener("click", () => wake(false));
@@ -618,8 +635,7 @@ document.getElementById("openbtn").onclick = async () => {
   say("開店だよ。<br>今日もよろしくな。");
   startCamera();
   touch();
-  prepareGreeting();
-  prepareFixedVoices();
+  prepareFixedVoices().then(() => { prepareGreeting(); prepareThanks(); });
 };
 
 // ---------- 店主さん：話しことばから品札 ----------
