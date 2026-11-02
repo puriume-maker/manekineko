@@ -46,6 +46,10 @@
   .cat.talking svg .tongue { animation: tongue 0.28s steps(2) infinite; }
   @keyframes talk { 50% { transform: translateY(1px); } }
   @keyframes tongue { 0% { opacity: 0; } 50% { opacity: 1; } }
+  .cat.thinking svg { animation: tilt 1.2s ease-in-out infinite; transform-origin: 50% 90%; }
+  @keyframes tilt { 50% { transform: rotate(-6deg); } }
+  .cat.listening::after { content: "👂"; position: absolute; right: -6px; top: -6px; font-size: clamp(22px, 4vmin, 40px); animation: zzz 1.6s ease-in-out infinite; }
+  .cat { position: relative; }
   .cat.wave .paw { animation: wave 0.45s ease-in-out 4; }
   @keyframes wave { 50% { transform: translateY(-7px); } }
   .cat.hop svg { animation: hop 0.5s ease-out 2; }
@@ -250,7 +254,7 @@
   </section>
 
   <div class="foot">
-    <span id="camnote">📷 来てけだのに気づくために、カメラ使ってるよ。録画はしねがら安心してけれ。</span>
+    <span id="camnote">📷 来てけだのに気づくためにカメラ、🎤 話しかけてもらうためにマイクを使ってるよ。録画も録音もしねがら安心してけれ。</span>
     <span><button id="nap">おやすみさせる</button>　<button id="close">店じまい（店主さん）</button></span>
   </div>
 </main>
@@ -592,6 +596,45 @@ document.getElementById("paid").onclick = () => {
   setTimeout(() => { prepareGreeting(); prepareThanks(); }, 8000);
 };
 
+// ---------- お話し：猫が耳をすまして、話しかけられたら答える ----------
+// 声は iPad の音声認識で文字にするだけ（録音は残さない）。猫がしゃべっている間は聞かない
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let ear = null, earWanted = false, talkBusy = false, needTapToTalk = false;
+const catEl = () => document.getElementById("cat");
+function listen() {
+  if (!SR || asleep || talkBusy || ear || !shopOpen) return;
+  if (!player.paused || (window.speechSynthesis && speechSynthesis.speaking)) return;
+  try {
+    ear = new SR();
+    ear.lang = "ja-JP"; ear.interimResults = false; ear.continuous = false;
+    ear.onresult = (e) => {
+      const heard = [...e.results].map(r => r[0].transcript).join("").trim();
+      if (heard) answer(heard);
+    };
+    ear.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") needTapToTalk = true; };
+    ear.onend = () => { ear = null; catEl().classList.remove("listening"); };
+    ear.start();
+    catEl().classList.add("listening");
+  } catch (e) { ear = null; needTapToTalk = true; }
+}
+async function answer(heard) {
+  talkBusy = true; touch(); lastMotion = Date.now();
+  catEl().classList.add("thinking");
+  bubble.innerHTML = `<small style="opacity:.6">「${esc(heard)}」</small><br>うーん……`;
+  const line = await askNeko("talk", { heard, mode });
+  const text = line || "わりな、よぐ聞ごえねがった。もう一回しゃべってけれ。";
+  const url = await makeVoice(plain(text));
+  catEl().classList.remove("thinking");
+  talkBusy = false;
+  say(text, true, url); remember(text);
+}
+// 猫がしゃべり終わったら、また耳をすます
+player.addEventListener("ended", () => setTimeout(listen, 400));
+// 聞き取りが勝手に止まっていたら、お客さんがいる間はかけ直す
+setInterval(() => { if (!asleep && visit.active && !ear && !talkBusy && !needTapToTalk) listen(); }, 1500);
+// iPad がタッチなしの聞き取りを許さない時は、猫をなでるとお話しできる
+document.getElementById("cat").addEventListener("click", () => { needTapToTalk = false; listen(); });
+
 // ---------- 寝る・起きる ----------
 const sleepEl = document.getElementById("sleep");
 let asleep = false, lastActive = Date.now();
@@ -634,6 +677,7 @@ function tapped() { lastTap = Date.now(); visit.tapped = true; touch(); }
 function sleep() {
   if (asleep) return;
   asleep = true;
+  if (ear) { try { ear.abort(); } catch (e) {} ear = null; }
   for (const k in cart) delete cart[k];
   render();
   sleepEl.classList.remove("hidden");
