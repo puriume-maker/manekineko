@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>庭先の店番</title>
+<style>
+  :root {
+    --bg: #f6f1e7;
+    --card: #fffdf8;
+    --ink: #3b3a36;
+    --sub: #8a8578;
+    --mint: #8fd3c1;
+    --mint-deep: #4fa894;
+    --line: #e6dfd0;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+
+  /* 店先 */
+  .shop {
+    display: flex; align-items: flex-end; gap: 16px;
+    background: var(--card); border: 2px solid var(--line); border-radius: 20px; padding: 16px;
+  }
+  .cat { width: 140px; flex-shrink: 0; }
+  .cat svg { width: 100%; height: auto; display: block; }
+  .cat.wave .paw { animation: wave 0.45s ease-in-out 4; }
+  @keyframes wave { 50% { transform: translateY(-6px); } }
+  .bubble {
+    flex: 1; position: relative; background: #fff; border: 2px solid var(--ink);
+    border-radius: 16px; padding: 14px 16px; font-size: 21px; line-height: 1.6; min-height: 92px;
+  }
+  .bubble::before {
+    content: ""; position: absolute; left: -12px; bottom: 22px;
+    border: 6px solid transparent; border-right: 6px solid var(--ink);
+  }
+
+  /* 品 */
+  h2 { font-size: 15px; color: var(--sub); font-weight: normal; margin: 22px 4px 8px; }
+  .items { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .item { position: relative; background: var(--card); border: 2px solid var(--line); border-radius: 16px; }
+  .item .add {
+    display: block; width: 100%; background: none; border: 0; padding: 14px;
+    text-align: left; font: inherit; color: inherit; cursor: pointer;
+  }
+  .item .add:active { transform: scale(0.97); }
+  .item .emoji { font-size: 38px; }
+  .item .name { font-size: 19px; margin-top: 4px; }
+  .item .price { color: var(--sub); }
+  .item .left { color: var(--sub); font-size: 13px; }
+  .item .count {
+    float: right; background: var(--mint); color: #fff; border-radius: 999px;
+    min-width: 30px; text-align: center; font-weight: bold; padding: 2px 8px; visibility: hidden;
+  }
+  .item.picked { border-color: var(--mint-deep); }
+  .item.picked .count { visibility: visible; }
+  .item .minus {
+    position: absolute; right: 10px; bottom: 10px; width: 42px; height: 42px;
+    border-radius: 999px; border: 2px solid var(--mint-deep); background: #fff; color: var(--mint-deep);
+    font-size: 22px; line-height: 1; cursor: pointer; display: none;
+  }
+  .item.picked .minus { display: block; }
+  .item.soldout { opacity: 0.45; }
+  .item.soldout .add { cursor: default; }
+
+  /* おあいそ */
+  .total {
+    margin-top: 20px; display: flex; align-items: center; justify-content: space-between;
+    background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 14px 16px;
+  }
+  .total .yen { font-size: 30px; font-weight: bold; }
+  .buttons { display: flex; gap: 10px; }
+  button.main, button.sub {
+    font: inherit; border-radius: 999px; padding: 12px 20px; cursor: pointer; border: 2px solid var(--mint-deep);
+  }
+  button.main { background: var(--mint-deep); color: #fff; font-size: 18px; }
+  button.sub { background: transparent; color: var(--mint-deep); }
+  button:disabled { opacity: 0.4; cursor: default; }
+
+  .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; color: var(--sub); font-size: 13px; }
+  .foot button { font: inherit; font-size: 13px; background: none; border: 0; color: var(--sub); text-decoration: underline; cursor: pointer; }
+
+  /* 寝とる時 */
+  .sleep {
+    position: fixed; inset: 0; background: rgba(30, 32, 40, 0.86); color: #e9e4d8;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    transition: opacity 0.6s; z-index: 10; text-align: center; padding: 24px;
+  }
+  .sleep.hidden { opacity: 0; pointer-events: none; }
+  .sleep .cat { width: 200px; background: #f6f1e7; border-radius: 28px; padding: 18px 18px 12px; opacity: 0.92; }
+  .sleep .zzz { font-size: 28px; letter-spacing: 6px; animation: zzz 2.4s ease-in-out infinite; }
+  @keyframes zzz { 50% { opacity: 0.3; transform: translateY(-6px); } }
+  .sleep p { margin: 0; font-size: 18px; line-height: 1.7; }
+  .sleep small { color: #a9a395; font-size: 13px; }
+
+  /* 開店前 */
+  .open {
+    position: fixed; inset: 0; background: var(--bg); z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px; text-align: center;
+  }
+  .open.hidden { display: none; }
+  .open h1 { margin: 0; font-size: 26px; }
+  .open p { margin: 0; color: var(--sub); line-height: 1.7; }
+  .open .cat { width: 160px; }
+  .open button.main { font-size: 22px; padding: 16px 40px; }
+
+  video, canvas.probe { display: none; }
+
+  @media (max-width: 480px) {
+    .cat { width: 96px; }
+    .bubble { font-size: 17px; }
+    .total { flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
+    .buttons { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="shop">
+    <div class="cat" id="cat"></div>
+    <div class="bubble" id="bubble">いらっしゃい。</div>
+  </section>
+
+  <h2>きょうの品（さわると数がふえるよ）</h2>
+  <section class="items" id="items"></section>
+
+  <section class="total">
+    <div>おあいそ <span class="yen" id="yen">0円</span></div>
+    <div class="buttons">
+      <button class="sub" id="reset">やりなおす</button>
+      <button class="main" id="paid" disabled>お金いれたよ</button>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span id="camnote">📷 来てくれたのに気づくためにカメラを使っとるよ。録画はせえへん。</span>
+    <button id="nap">おやすみさせる</button>
+  </div>
+</main>
+
+<div class="sleep hidden" id="sleep">
+  <div class="cat" id="sleepcat"></div>
+  <div class="zzz">z z z</div>
+  <p>店番、うとうと中。<br>近づくか、画面にさわると起きるよ。</p>
+  <small>📷 動いたのに気づくだけ。録画はせえへん。</small>
+</div>
+
+<div class="open" id="open">
+  <div class="cat" id="opencat"></div>
+  <h1>庭先の店番</h1>
+  <p>店主さんへ：お店を開ける時に押してね。<br>押すと、声とカメラが使えるようになるよ。</p>
+  <button class="main" id="openbtn">開店する</button>
+</div>
+
+<video id="video" playsinline muted></video>
+<canvas class="probe" id="probe" width="32" height="24"></canvas>
+
+<script>
+// ---------- 招き猫のドット絵 ----------
+const AWAKE = [
+  "....k........k....",
+  "...kok......kok...",
+  "...kook....kook...",
+  "..kwwwkkkkkkwwwk..",
+  "..kwwwwwwwwwwwwk..",
+  ".kwwwwwwwwwwwwwwk.",
+  ".kwwkkwwwwwwkkwwk.",
+  ".kwwkkwwppwwkkwwk.",
+  ".kwrwwwwkkwwwwrwk.",
+  "..kwwwwwwwwwwwwk..",
+  "...kkyyyyyyyykk...",
+  "..kwwwwwyywwwwwk..",
+  ".kwwkwwwwwwwwkwwk.",
+  ".kwwkwwwwwwwwkwwk.",
+  ".kwwwkwwwwwwkwwwk.",
+  "..kkkkkkkkkkkkkk..",
+];
+// 寝顔：目を細い線に
+const ASLEEP = AWAKE.map((row, y) =>
+  y === 6 ? ".kwwwwwwwwwwwwwwk." : y === 7 ? ".kwkkwwwppwwwkkwk." : row);
+const COLORS = { k: "#3b3a36", w: "#ffffff", o: "#f2a65a", p: "#f4a7b9", r: "#f7c6cf", y: "#e8b830" };
+
+function catSVG(pixels, withPaw) {
+  const s = 6, w = pixels[0].length * s, h = (pixels.length + 0) * s;
+  let rects = "";
+  pixels.forEach((row, y) => [...row].forEach((c, x) => {
+    if (COLORS[c]) rects += `<rect x="${x*s}" y="${y*s}" width="${s}" height="${s}" fill="${COLORS[c]}"/>`;
+  }));
+  // 招く手（顔の右によいしょとあげた肉球）
+  const PAW = [
+    ".kkk.",
+    "kwwwk",
+    "kwpwk",
+    "kwwwk",
+    ".kwk.",
+    ".kwk.",
+    ".kwk.",
+    ".kwk.",
+  ];
+  let pawRects = "";
+  if (withPaw) PAW.forEach((row, y) => [...row].forEach((c, x) => {
+    if (COLORS[c]) pawRects += `<rect x="${(16 + x)*s}" y="${(4 + y)*s}" width="${s}" height="${s}" fill="${COLORS[c]}"/>`;
+  }));
+  const paw = withPaw ? `<g class="paw">${pawRects}</g>` : "";
+  return `<svg viewBox="0 0 ${21 * s} ${h}" shape-rendering="crispEdges" role="img" aria-label="招き猫">${rects}${paw}</svg>`;
+}
+document.getElementById("cat").innerHTML = catSVG(AWAKE, true);
+document.getElementById("opencat").innerHTML = catSVG(AWAKE, true);
+document.getElementById("sleepcat").innerHTML = catSVG(ASLEEP, false);
+
+// ---------- きょうの品（あとで店主さんが話しかけて並べる） ----------
+const ITEMS = [
+  { id: "tomato", emoji: "🍅", name: "ミニトマト", unit: "袋", price: 150, stock: 5 },
+  { id: "negi",   emoji: "🌿", name: "小ねぎ",     unit: "束", price: 100, stock: 3 },
+  { id: "shiso",  emoji: "🍃", name: "大葉",       unit: "束", price: 100, stock: 4 },
+  { id: "kyuri",  emoji: "🥒", name: "きゅうり",   unit: "本", price: 100, stock: 6 },
+];
+const cart = {};
+const sales = []; // 売れた記録（あとで日報の材料）
+
+// ---------- しゃべる ----------
+const bubble = document.getElementById("bubble");
+let voice = null;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith("ja"));
+  // Chrome なら Google の声が一番自然。iPad の Safari には無いので、Apple の拡張版の声を探す
+  voice = vs.find(v => /Google/.test(v.name))
+       || vs.find(v => /(拡張|Enhanced|Premium)/.test(v.name))
+       || vs.find(v => /Kyoko|O-ren|Hattori/.test(v.name)) || vs[0] || null;
+}
+if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+
+function say(html, speak = true) {
+  bubble.innerHTML = html;
+  if (!speak || !("speechSynthesis" in window)) return;
+  const text = html.replace(/<br>/g, "、").replace(/<[^>]+>/g, "");
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "ja-JP"; if (voice) u.voice = voice;
+  u.rate = 1.0; u.pitch = 1.15;
+  speechSynthesis.speak(u);
+}
+
+// ---------- いらっしゃい（いまは決まり文句。あとで Claude がその場で考える） ----------
+function timeWord() {
+  const h = new Date().getHours();
+  if (h < 10) return "朝";
+  if (h < 16) return "昼";
+  return "夕方";
+}
+function greeting() {
+  const left = ITEMS.filter(it => it.stock > 0);
+  const few = left.find(it => it.stock <= 2);
+  const lines = [];
+  const t = timeWord();
+  lines.push(t === "朝" ? "おはようさん、いらっしゃい。" : t === "昼" ? "いらっしゃい、ようこそ。" : "夕方までおつかれさん、いらっしゃい。");
+  if (!left.length) return "いらっしゃい。<br>ごめんな、今日はもう売り切れなんよ。";
+  if (few) lines.push(`${few.name}はあと${few.stock}${few.unit}やで。`);
+  else lines.push(`今日は${left[Math.floor(Math.random() * left.length)].name}がええ感じや。`);
+  return lines.join("<br>");
+}
+
+// ---------- 品の表示 ----------
+function total() { return ITEMS.reduce((s, it) => s + (cart[it.id] || 0) * it.price, 0); }
+
+function render() {
+  const box = document.getElementById("items");
+  box.innerHTML = "";
+  ITEMS.forEach((it) => {
+    const n = cart[it.id] || 0;
+    const card = document.createElement("div");
+    card.className = "item" + (n ? " picked" : "") + (it.stock === 0 ? " soldout" : "");
+    card.innerHTML = `<button class="add"><span class="count">${n}</span><div class="emoji">${it.emoji}</div>
+      <div class="name">${it.name}</div><div class="price">${it.price}円</div>
+      <div class="left">${it.stock === 0 ? "売り切れ" : `のこり ${it.stock - n}${it.unit}`}</div></button>
+      <button class="minus" aria-label="${it.name}をひとつへらす">−</button>`;
+    card.querySelector(".add").onclick = () => pick(it);
+    card.querySelector(".minus").onclick = () => unpick(it);
+    box.appendChild(card);
+  });
+  document.getElementById("yen").textContent = total() + "円";
+  document.getElementById("paid").disabled = total() === 0;
+}
+
+function pick(it) {
+  touch();
+  const n = cart[it.id] || 0;
+  if (it.stock === 0) { say(`${it.name}は売り切れやねん、ごめんな。`); return; }
+  if (n >= it.stock) { say(`${it.name}は、それで最後なんよ。`); return; }
+  cart[it.id] = n + 1;
+  render();
+  say(`${it.name}、${cart[it.id]}${it.unit}やね。<br>ぜんぶで <b>${total()}円</b> やで。`);
+}
+
+function unpick(it) {
+  touch();
+  cart[it.id] = Math.max(0, (cart[it.id] || 0) - 1);
+  if (!cart[it.id]) delete cart[it.id];
+  render();
+  const n = cart[it.id] || 0;
+  say(n ? `${it.name}、${n}${it.unit}にしといたで。<br>ぜんぶで <b>${total()}円</b>。`
+        : `${it.name}はやめとくんやね。<br>ぜんぶで <b>${total()}円</b>。`);
+}
+
+document.getElementById("reset").onclick = () => {
+  touch();
+  for (const k in cart) delete cart[k];
+  render();
+  say("はいはい、やりなおしね。<br>ゆっくり選んでってな。");
+};
+
+document.getElementById("paid").onclick = () => {
+  touch();
+  const t = total();
+  const bought = ITEMS.filter(it => cart[it.id]).map(it => ({ id: it.id, name: it.name, n: cart[it.id], price: it.price }));
+  bought.forEach(b => { ITEMS.find(it => it.id === b.id).stock -= b.n; });
+  sales.push({ at: new Date().toISOString(), items: bought, total: t });
+  try { localStorage.setItem("niwasaki_sales", JSON.stringify(sales)); } catch (e) {}
+  for (const k in cart) delete cart[k];
+  render();
+  const c = document.getElementById("cat");
+  c.classList.remove("wave"); void c.offsetWidth; c.classList.add("wave");
+  say(`${t}円、おおきに。<br>おいしく食べてな。またおいで。`);
+};
+
+// ---------- 寝る・起きる ----------
+const sleepEl = document.getElementById("sleep");
+let asleep = false, lastActive = Date.now();
+const NAP_AFTER = 60 * 1000; // 1分だれも来んかったら寝る
+
+function touch() { lastActive = Date.now(); }
+function sleep() {
+  if (asleep) return;
+  asleep = true;
+  for (const k in cart) delete cart[k];
+  render();
+  sleepEl.classList.remove("hidden");
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+function wake(byMotion) {
+  touch();
+  if (!asleep) return;
+  asleep = false;
+  sleepEl.classList.add("hidden");
+  say(greeting());
+}
+sleepEl.addEventListener("click", () => wake(false));
+document.getElementById("nap").onclick = sleep;
+setInterval(() => { if (!asleep && Date.now() - lastActive > NAP_AFTER) sleep(); }, 2000);
+
+// ---------- カメラ：動いたかどうかだけ見る（画像は保存も送信もしない） ----------
+const video = document.getElementById("video");
+const probe = document.getElementById("probe");
+const ctx = probe.getContext("2d", { willReadFrequently: true });
+let prev = null;
+const MOTION = 18; // 動きの敏感さ（小さいほど敏感）
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: false });
+    video.srcObject = stream;
+    await video.play();
+    setInterval(checkMotion, 400);
+  } catch (e) {
+    document.getElementById("camnote").textContent = "📷 カメラが使えんかったので、画面にさわったら起きるよ。";
+  }
+}
+function checkMotion() {
+  if (video.readyState < 2) return;
+  ctx.drawImage(video, 0, 0, probe.width, probe.height);
+  const d = ctx.getImageData(0, 0, probe.width, probe.height).data;
+  const gray = new Uint8Array(probe.width * probe.height);
+  for (let i = 0; i < gray.length; i++) gray[i] = (d[i*4] + d[i*4+1] + d[i*4+2]) / 3;
+  if (prev) {
+    let diff = 0;
+    for (let i = 0; i < gray.length; i++) diff += Math.abs(gray[i] - prev[i]);
+    diff /= gray.length;
+    if (diff > MOTION) { asleep ? wake(true) : touch(); }
+  }
+  prev = gray;
+}
+
+// ---------- 開店 ----------
+let wakeLock = null;
+async function keepScreenOn() {
+  try { wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wakeLock) keepScreenOn(); });
+
+document.getElementById("openbtn").onclick = async () => {
+  document.getElementById("open").classList.add("hidden");
+  keepScreenOn();
+  say("開店や。<br>今日もよろしゅう。");
+  startCamera();
+  touch();
+};
+
+render();
+</script>
+</body>
+</html>
