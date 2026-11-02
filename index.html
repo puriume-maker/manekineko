@@ -169,6 +169,10 @@
   body[data-theme="sakura"] { --bg: #f8e6e8; --card: #fff9fa; --line: #efd3d7; --mint-deep: #c47a86; --mint: #e7b3bb; }
   body[data-theme="yoru"]   { --bg: #2b2f3a; --card: #363b48; --line: #4a5060; --ink: #e9e4d8; --sub: #b4ae9f; }
   body[data-theme="yoru"] .bubble { background: #fffdf8; color: #3b3a36; }
+  /* くっきり：日なたでも読みやすい、白地に黒・太い線 */
+  body[data-theme="kukkiri"] { --bg: #ffffff; --card: #ffffff; --line: #000000; --ink: #000000; --sub: #222222; --mint-deep: #006b52; --mint: #009973; }
+  body[data-theme="kukkiri"] .item, body[data-theme="kukkiri"] .total, body[data-theme="kukkiri"] .shop, body[data-theme="kukkiri"] .bubble { border-width: 3px; }
+  body[data-theme="kukkiri"] .item .price, body[data-theme="kukkiri"] .item .left { color: #000; font-weight: bold; }
 
   .tiny { margin: 0; text-align: right; }
   .tiny button { background: none; border: 0; color: var(--sub); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
@@ -238,6 +242,7 @@
       <button data-theme="ajisai" style="background:#e6e3f4" aria-label="紫陽花"></button>
       <button data-theme="sakura" style="background:#f8e6e8" aria-label="さくら"></button>
       <button data-theme="yoru" style="background:#2b2f3a" aria-label="夜"></button>
+      <button data-theme="kukkiri" style="background:#fff;border:3px solid #000" aria-label="くっきり（外向き）"></button>
     </div>
     <div class="row">
       <button class="sub" id="ownercancel">もどる</button>
