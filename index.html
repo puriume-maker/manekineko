@@ -111,6 +111,30 @@
   .open .cat { width: 160px; }
   .open button.main { font-size: 22px; padding: 16px 40px; }
 
+  /* 店主さんの画面 */
+  .owner { position: fixed; inset: 0; background: var(--bg); z-index: 30; overflow-y: auto; padding: 24px 16px; }
+  .owner.hidden { display: none; }
+  .ownerbox { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .ownerbox h1 { margin: 0; font-size: 24px; }
+  .ownerbox p { margin: 0; color: var(--sub); line-height: 1.7; }
+  .ownerbox textarea {
+    font: inherit; font-size: 18px; padding: 12px; border-radius: 14px; border: 2px solid var(--line);
+    background: #fff; color: var(--ink); -webkit-user-select: text; user-select: text;
+  }
+  .ownerbox .row { display: flex; gap: 10px; justify-content: flex-end; }
+  .neko-q:empty { display: none; }
+  .neko-q { background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 12px 14px; }
+  .fuda-row {
+    display: grid; grid-template-columns: 40px 1fr 90px 70px 60px 36px; gap: 8px; align-items: center;
+    background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px;
+  }
+  .fuda-row input { font: inherit; width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); -webkit-user-select: text; user-select: text; }
+  .fuda-row input.missing { border: 2px solid #e8a33d; background: #fff6e8; }
+  .fuda-row .emo { font-size: 26px; text-align: center; }
+  .fuda-row .del { background: none; border: 0; font-size: 20px; color: var(--sub); cursor: pointer; }
+  .fuda-head { display: grid; grid-template-columns: 40px 1fr 90px 70px 60px 36px; gap: 8px; color: var(--sub); font-size: 12px; padding: 0 10px; }
+  .open button.sub { font-size: 16px; }
+
   video, canvas.probe { display: none; }
 
   @media (max-width: 480px) {
@@ -157,6 +181,22 @@
   <h1>庭先の店番</h1>
   <p>店主さんへ：お店を開ける時に押してね。<br>押すと、声とカメラが使えるようになるよ。</p>
   <button class="main" id="openbtn">開店する</button>
+  <button class="sub" id="ownerbtn">きょうの品を並べる</button>
+</div>
+
+<div class="owner hidden" id="owner">
+  <div class="ownerbox">
+    <h1>きょうの品を並べる</h1>
+    <p>招き猫に話しかけるみたいに書いてね。キーボードのマイクで話してもええよ。<br>例：「ミニトマト5袋150円、大葉が4束で100円、きゅうりも少し」</p>
+    <textarea id="words" rows="3" placeholder="今日はなにを並べる？"></textarea>
+    <div class="row"><button class="main" id="ask">招き猫に頼む</button></div>
+    <div class="neko-q" id="nekoq"></div>
+    <div id="fuda"></div>
+    <div class="row">
+      <button class="sub" id="ownercancel">もどる</button>
+      <button class="main" id="ownerok" disabled>それでええよ</button>
+    </div>
+  </div>
 </div>
 
 <video id="video" playsinline muted></video>
@@ -216,12 +256,38 @@ document.getElementById("opencat").innerHTML = catSVG(AWAKE, true);
 document.getElementById("sleepcat").innerHTML = catSVG(ASLEEP, false);
 
 // ---------- きょうの品（あとで店主さんが話しかけて並べる） ----------
-const ITEMS = [
+const SAMPLE = [
   { id: "tomato", emoji: "🍅", name: "ミニトマト", unit: "袋", price: 150, stock: 5 },
   { id: "negi",   emoji: "🌿", name: "小ねぎ",     unit: "束", price: 100, stock: 3 },
   { id: "shiso",  emoji: "🍃", name: "大葉",       unit: "束", price: 100, stock: 4 },
   { id: "kyuri",  emoji: "🥒", name: "きゅうり",   unit: "本", price: 100, stock: 6 },
 ];
+let ITEMS = SAMPLE.map(x => ({ ...x }));
+try {
+  const saved = JSON.parse(localStorage.getItem("niwasaki_items") || "null");
+  if (Array.isArray(saved) && saved.length) ITEMS = saved;
+} catch (e) {}
+function saveItems() { try { localStorage.setItem("niwasaki_items", JSON.stringify(ITEMS)); } catch (e) {} }
+
+// ---------- Claude（店番の頭）にたずねる。だめなら決まり文句 ----------
+const recentLines = [];
+async function askNeko(scene, extra = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 7000);
+  try {
+    const r = await fetch("/api/aisatsu", {
+      method: "POST", signal: ctrl.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scene, now: new Date().toLocaleString("ja-JP", { weekday: "short", hour: "2-digit", minute: "2-digit" }),
+        items: ITEMS, recent: recentLines, ...extra,
+      }),
+    });
+    const j = await r.json();
+    return j.line || null;
+  } catch (e) { return null; } finally { clearTimeout(timer); }
+}
+function remember(line) { recentLines.push(line.replace(/<[^>]+>/g, "")); if (recentLines.length > 5) recentLines.shift(); }
 const cart = {};
 const sales = []; // 売れた記録（あとで日報の材料）
 
@@ -321,13 +387,18 @@ document.getElementById("paid").onclick = () => {
   const t = total();
   const bought = ITEMS.filter(it => cart[it.id]).map(it => ({ id: it.id, name: it.name, n: cart[it.id], price: it.price }));
   bought.forEach(b => { ITEMS.find(it => it.id === b.id).stock -= b.n; });
+  saveItems();
   sales.push({ at: new Date().toISOString(), items: bought, total: t });
   try { localStorage.setItem("niwasaki_sales", JSON.stringify(sales)); } catch (e) {}
   for (const k in cart) delete cart[k];
   render();
   const c = document.getElementById("cat");
   c.classList.remove("wave"); void c.offsetWidth; c.classList.add("wave");
-  say(`${t}円、おおきに。<br>おいしく食べてな。またおいで。`);
+  say(`${t}円、おおきに。`);
+  askNeko("thanks", { cart: { 品: bought.map(b => `${b.name}×${b.n}`), 合計: t } }).then(line => {
+    const text = line ? `${t}円、おおきに。<br>${line}` : `${t}円、おおきに。<br>おいしく食べてな。またおいで。`;
+    say(text); remember(text);
+  });
 };
 
 // ---------- 寝る・起きる ----------
@@ -349,7 +420,11 @@ function wake(byMotion) {
   if (!asleep) return;
   asleep = false;
   sleepEl.classList.add("hidden");
-  say(greeting());
+  bubble.innerHTML = "……ん？";
+  askNeko("greet").then(line => {
+    const text = line || greeting();
+    say(text); remember(text);
+  });
 }
 sleepEl.addEventListener("click", () => wake(false));
 document.getElementById("nap").onclick = sleep;
@@ -400,6 +475,68 @@ document.getElementById("openbtn").onclick = async () => {
   say("開店や。<br>今日もよろしゅう。");
   startCamera();
   touch();
+};
+
+// ---------- 店主さん：話しことばから品札 ----------
+const owner = document.getElementById("owner");
+let draft = [];
+document.getElementById("ownerbtn").onclick = () => { owner.classList.remove("hidden"); document.getElementById("words").focus(); };
+document.getElementById("ownercancel").onclick = () => owner.classList.add("hidden");
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function renderDraft() {
+  const box = document.getElementById("fuda");
+  if (!draft.length) { box.innerHTML = ""; document.getElementById("ownerok").disabled = true; return; }
+  box.innerHTML = `<div class="fuda-head"><span></span><span>品</span><span>値段（円）</span><span>数</span><span>単位</span><span></span></div>` +
+    draft.map((it, i) => `<div class="fuda-row" data-i="${i}">
+      <div class="emo">${esc(it.emoji)}</div>
+      <input data-k="name" value="${esc(it.name)}">
+      <input data-k="price" inputmode="numeric" value="${it.price ?? ""}" class="${it.price == null ? "missing" : ""}" placeholder="？">
+      <input data-k="stock" inputmode="numeric" value="${it.stock ?? ""}" class="${it.stock == null ? "missing" : ""}" placeholder="？">
+      <input data-k="unit" value="${esc(it.unit)}">
+      <button class="del" aria-label="消す">×</button></div>`).join("");
+  box.querySelectorAll(".fuda-row").forEach(row => {
+    const i = +row.dataset.i;
+    row.querySelectorAll("input").forEach(inp => inp.oninput = () => {
+      const k = inp.dataset.k;
+      draft[i][k] = (k === "price" || k === "stock") ? (inp.value.trim() === "" ? null : Number(inp.value)) : inp.value;
+      inp.classList.toggle("missing", (k === "price" || k === "stock") && draft[i][k] == null);
+      checkDraft();
+    });
+    row.querySelector(".del").onclick = () => { draft.splice(i, 1); renderDraft(); };
+  });
+  checkDraft();
+}
+function checkDraft() {
+  const ok = draft.length && draft.every(it => it.name && Number.isFinite(it.price) && it.price >= 0 && Number.isFinite(it.stock) && it.stock >= 0);
+  document.getElementById("ownerok").disabled = !ok;
+}
+
+document.getElementById("ask").onclick = async () => {
+  const words = document.getElementById("words").value.trim();
+  if (!words) return;
+  const q = document.getElementById("nekoq");
+  q.textContent = "ふむふむ……";
+  try {
+    const r = await fetch("/api/shinafuda", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    draft = (j.items || []).map((it, i) => ({ id: "item" + Date.now() + i, ...it }));
+    q.textContent = j.question || (draft.length ? "こんな札でどうやろ？ 数字だけ見たってな。" : "ごめんな、品が見つからんかった。");
+    renderDraft();
+  } catch (e) {
+    q.textContent = "ごめんな、いま頭がつながらんみたい。ちょっと待ってもう一回押してな。";
+  }
+};
+
+document.getElementById("ownerok").onclick = () => {
+  ITEMS = draft.map(it => ({ id: it.id, emoji: it.emoji || "🧺", name: it.name, unit: it.unit || "個", price: it.price, stock: it.stock }));
+  saveItems();
+  for (const k in cart) delete cart[k];
+  render();
+  owner.classList.add("hidden");
+  say("品札、並べといたで。<br>開店したら、ちゃんと店番するわな。", false);
 };
 
 render();
