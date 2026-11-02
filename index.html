@@ -453,17 +453,17 @@ function render() {
 }
 
 function pick(it) {
-  touch();
+  tapped();
   const n = cart[it.id] || 0;
   if (it.stock === 0) { say(`${it.name}は売り切れだんだ、わりな。`, false); return; }
   if (n >= it.stock) { say(`${it.name}は、それで最後だよ。`, false); return; }
   cart[it.id] = n + 1;
   render();
-  say(`${it.name}、${cart[it.id]}${it.unit}な。<br>ぜんぶで <b>${total()}円</b> だよ。`, false);
+  say(`${it.name}、${cart[it.id]}${it.unit}な。ぜんぶで <b>${total()}円</b> だよ。<br>お代は箱さ入れで、「お金いれたよ」を押してけれな。`, false);
 }
 
 function unpick(it) {
-  touch();
+  tapped();
   cart[it.id] = Math.max(0, (cart[it.id] || 0) - 1);
   if (!cart[it.id]) delete cart[it.id];
   render();
@@ -473,14 +473,14 @@ function unpick(it) {
 }
 
 document.getElementById("reset").onclick = () => {
-  touch();
+  tapped();
   for (const k in cart) delete cart[k];
   render();
   say("はいはい、やりなおしな。<br>ゆっくり選んでってけれ。", false);
 };
 
 document.getElementById("paid").onclick = () => {
-  touch();
+  tapped();
   const t = total();
   const bought = ITEMS.filter(it => cart[it.id]).map(it => ({ id: it.id, name: it.name, n: cart[it.id], price: it.price }));
   bought.forEach(b => { ITEMS.find(it => it.id === b.id).stock -= b.n; });
@@ -504,7 +504,32 @@ const sleepEl = document.getElementById("sleep");
 let asleep = false, lastActive = Date.now();
 const NAP_AFTER = 60 * 1000; // 1分だれも来んかったら寝る
 
+// ---------- 呼び止め：お客さんが帰っていく時のひとこと ----------
+// 猫にわかるのは「画面のタップ」と「カメラの前の動き」だけ。品物を持っていったかは知らないので、疑う言い方はしない
+const LEAVE_AFTER = 8 * 1000; // 動きもタップも8秒なければ「帰った」とみなす
+let cameraOn = false, lastMotion = 0, lastTap = 0;
+let visit = { active: false, tapped: false, called: false };
+const FIXED = {
+  matte: "あっ、待ってけれ〜！お代、まだだよ〜。箱さ入れで、ボタン押してけれな。",
+  mata: "まだ来てけれな〜。買う時は、画面さわってけれな。",
+};
+const fixedVoice = {};
+async function prepareFixedVoices() { for (const k in FIXED) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
+setInterval(() => {
+  if (!cameraOn || asleep || !visit.active) return;
+  const now = Date.now();
+  if (now - lastMotion < LEAVE_AFTER || now - lastTap < LEAVE_AFTER) return;
+  if (Object.keys(cart).length && !visit.called) {
+    visit.called = true;
+    say(FIXED.matte, true, fixedVoice.matte ?? null);
+  } else if (!visit.tapped) {
+    say(FIXED.mata, true, fixedVoice.mata ?? null);
+  }
+  visit.active = false;
+}, 1000);
+
 function touch() { lastActive = Date.now(); }
+function tapped() { lastTap = Date.now(); visit.tapped = true; touch(); }
 function sleep() {
   if (asleep) return;
   asleep = true;
@@ -516,6 +541,7 @@ function sleep() {
 function wake(byMotion) {
   touch();
   if (!asleep) return;
+  visit = { active: true, tapped: false, called: false };
   asleep = false;
   sleepEl.classList.add("hidden");
   if (ready) {
@@ -543,6 +569,7 @@ async function startCamera() {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: false });
     video.srcObject = stream;
     await video.play();
+    cameraOn = true; lastMotion = Date.now();
     setInterval(checkMotion, 400);
   } catch (e) {
     document.getElementById("camnote").textContent = "📷 カメラ使えねがったがら、画面ささわれば起ぎるよ。";
@@ -558,7 +585,11 @@ function checkMotion() {
     let diff = 0;
     for (let i = 0; i < gray.length; i++) diff += Math.abs(gray[i] - prev[i]);
     diff /= gray.length;
-    if (diff > MOTION) { asleep ? wake(true) : touch(); }
+    if (diff > MOTION) {
+      lastMotion = Date.now();
+      if (asleep) wake(true);
+      else { touch(); if (!visit.active) visit = { active: true, tapped: false, called: false }; }
+    }
   }
   prev = gray;
 }
@@ -583,6 +614,7 @@ document.getElementById("openbtn").onclick = async () => {
   startCamera();
   touch();
   prepareGreeting();
+  prepareFixedVoices();
 };
 
 // ---------- 店主さん：話しことばから品札 ----------
