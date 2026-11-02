@@ -4,6 +4,6 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
-    "zod": "^3.25.0"
+    "zod": "^4.1.0"
   }
 }
