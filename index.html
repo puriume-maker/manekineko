@@ -22,20 +22,24 @@
     font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
   }
-  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  main {
+    max-width: 1100px; margin: 0 auto; padding: clamp(16px, 2.5vw, 32px);
+    height: 100vh; height: 100dvh; display: flex; flex-direction: column;
+  }
 
   /* 店先 */
   .shop {
     display: flex; align-items: flex-end; gap: 16px;
     background: var(--card); border: 2px solid var(--line); border-radius: 20px; padding: 16px;
   }
-  .cat { width: 140px; flex-shrink: 0; }
+  .cat { width: clamp(110px, 22vw, 250px); flex-shrink: 0; }
   .cat svg { width: 100%; height: auto; display: block; }
   .cat.wave .paw { animation: wave 0.45s ease-in-out 4; }
   @keyframes wave { 50% { transform: translateY(-4px); } }
   .bubble {
     flex: 1; position: relative; background: #fff; border: 2px solid var(--ink);
-    border-radius: 16px; padding: 14px 16px; font-size: 21px; line-height: 1.6; min-height: 92px;
+    border-radius: 18px; padding: clamp(14px, 2vw, 24px) clamp(16px, 2.4vw, 28px);
+    font-size: clamp(19px, 2.7vw, 32px); line-height: 1.6; min-height: 92px;
   }
   .bubble::before {
     content: ""; position: absolute; left: -12px; bottom: 22px;
@@ -43,26 +47,31 @@
   }
 
   /* 品 */
-  h2 { font-size: 15px; color: var(--sub); font-weight: normal; margin: 22px 4px 8px; }
-  .items { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  h2 { font-size: clamp(15px, 1.7vw, 20px); color: var(--sub); font-weight: normal; margin: clamp(18px, 3vh, 36px) 4px 10px; }
+  .items {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(clamp(150px, 19vw, 230px), 1fr));
+    grid-auto-rows: minmax(clamp(150px, 22vmin, 220px), 1fr);
+    gap: clamp(12px, 1.6vw, 20px); align-content: stretch; flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 8px;
+  }
   .item { position: relative; background: var(--card); border: 2px solid var(--line); border-radius: 16px; }
   .item .add {
-    display: block; width: 100%; background: none; border: 0; padding: 14px;
+    display: flex; flex-direction: column; justify-content: center; width: 100%; height: 100%;
+    background: none; border: 0; padding: clamp(14px, 2vw, 24px);
     text-align: left; font: inherit; color: inherit; cursor: pointer;
   }
   .item .add:active { transform: scale(0.97); }
-  .item .emoji { font-size: 38px; }
-  .item .name { font-size: 19px; margin-top: 4px; }
-  .item .price { color: var(--sub); }
-  .item .left { color: var(--sub); font-size: 13px; }
+  .item .emoji { font-size: clamp(40px, 9vmin, 96px); line-height: 1.1; }
+  .item .name { font-size: clamp(19px, 3.4vmin, 34px); margin-top: 6px; }
+  .item .price { color: var(--sub); font-size: clamp(16px, 2.7vmin, 26px); }
+  .item .left { color: var(--sub); font-size: clamp(13px, 1.9vmin, 18px); }
   .item .count {
-    float: right; background: var(--mint); color: #fff; border-radius: 999px;
+    position: absolute; top: 12px; right: 12px; background: var(--mint); color: #fff; border-radius: 999px;
     min-width: 30px; text-align: center; font-weight: bold; padding: 2px 8px; visibility: hidden;
   }
   .item.picked { border-color: var(--mint-deep); }
   .item.picked .count { visibility: visible; }
   .item .minus {
-    position: absolute; right: 10px; bottom: 10px; width: 42px; height: 42px;
+    position: absolute; right: 12px; bottom: 12px; width: clamp(42px, 5vw, 60px); height: clamp(42px, 5vw, 60px);
     border-radius: 999px; border: 2px solid var(--mint-deep); background: #fff; color: var(--mint-deep);
     font-size: 22px; line-height: 1; cursor: pointer; display: none;
   }
@@ -72,19 +81,20 @@
 
   /* おあいそ */
   .total {
-    margin-top: 20px; display: flex; align-items: center; justify-content: space-between;
-    background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 14px 16px;
+    margin-top: 16px; display: flex; align-items: center; justify-content: space-between;
+    background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: clamp(14px, 2vw, 24px) clamp(16px, 2.4vw, 28px);
+    font-size: clamp(16px, 1.9vw, 24px);
   }
-  .total .yen { font-size: 30px; font-weight: bold; }
+  .total .yen { font-size: clamp(30px, 4.4vw, 54px); font-weight: bold; }
   .buttons { display: flex; gap: 10px; }
   button.main, button.sub {
-    font: inherit; border-radius: 999px; padding: 12px 20px; cursor: pointer; border: 2px solid var(--mint-deep);
+    font: inherit; border-radius: 999px; padding: clamp(12px, 1.6vw, 20px) clamp(20px, 2.6vw, 36px); cursor: pointer; border: 2px solid var(--mint-deep);
   }
-  button.main { background: var(--mint-deep); color: #fff; font-size: 18px; }
+  button.main { background: var(--mint-deep); color: #fff; font-size: clamp(18px, 2.2vw, 28px); }
   button.sub { background: transparent; color: var(--mint-deep); }
   button:disabled { opacity: 0.4; cursor: default; }
 
-  .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; color: var(--sub); font-size: 13px; }
+  .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; color: var(--sub); font-size: clamp(12px, 1.3vw, 15px); }
   .foot button { font: inherit; font-size: 13px; background: none; border: 0; color: var(--sub); text-decoration: underline; cursor: pointer; }
 
   /* 寝とる時 */
@@ -134,6 +144,11 @@
   .fuda-row .del { background: none; border: 0; font-size: 20px; color: var(--sub); cursor: pointer; }
   .fuda-head { display: grid; grid-template-columns: 40px 1fr 90px 70px 60px 36px; gap: 8px; color: var(--sub); font-size: 12px; padding: 0 10px; }
   .open button.sub { font-size: 16px; }
+
+  /* 縦置きのiPadは2列の大きいカード */
+  @media (orientation: portrait) and (min-width: 600px) {
+    .items { grid-template-columns: repeat(2, 1fr); }
+  }
 
   video, canvas.probe { display: none; }
 
