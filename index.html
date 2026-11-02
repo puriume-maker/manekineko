@@ -32,7 +32,7 @@
   .cat { width: 140px; flex-shrink: 0; }
   .cat svg { width: 100%; height: auto; display: block; }
   .cat.wave .paw { animation: wave 0.45s ease-in-out 4; }
-  @keyframes wave { 50% { transform: translateY(-6px); } }
+  @keyframes wave { 50% { transform: translateY(-4px); } }
   .bubble {
     flex: 1; position: relative; background: #fff; border: 2px solid var(--ink);
     border-radius: 16px; padding: 14px 16px; font-size: 21px; line-height: 1.6; min-height: 92px;
@@ -205,51 +205,38 @@
 <script>
 // ---------- 招き猫のドット絵 ----------
 const AWAKE = [
-  "....k........k....",
-  "...kok......kok...",
-  "...kook....kook...",
-  "..kwwwkkkkkkwwwk..",
-  "..kwwwwwwwwwwwwk..",
-  ".kwwwwwwwwwwwwwwk.",
-  ".kwwkkwwwwwwkkwwk.",
-  ".kwwkkwwppwwkkwwk.",
-  ".kwrwwwwkkwwwwrwk.",
-  "..kwwwwwwwwwwwwk..",
-  "...kkyyyyyyyykk...",
-  "..kwwwwwyywwwwwk..",
-  ".kwwkwwwwwwwwkwwk.",
-  ".kwwkwwwwwwwwkwwk.",
-  ".kwwwkwwwwwwkwwwk.",
-  "..kkkkkkkkkkkkkk..",
+  "....k........k......",
+  "...kok......kok.....",
+  "...kook....kook.....",
+  "..kwwwkkkkkkwwwk....",
+  "..kwwwwwwwwwwwwk....",
+  ".kwwwwwwwwwwwwwwkwwk",
+  ".kwwkkwwwwwwkkwwkwwk",
+  ".kwwkkwwppwwkkwwkwwk",
+  ".kwrwwwwkkwwwwrwkwwk",
+  "..kwwwwwwwwwwwwkwwwk",
+  "...kkyyyyyyyykwwwwwk",
+  "..kwwwwwyywwwwwwwwwk",
+  ".kwwkwwwwwwwwwwwwwwk",
+  ".kwwkwwwwwwwwwwwwwwk",
+  ".kwwwkwwwwwwwwwwwwwk",
+  "..kkkkkkkkkkkkkkkkk.",
 ];
 // 寝顔：目を細い線に
 const ASLEEP = AWAKE.map((row, y) =>
-  y === 6 ? ".kwwwwwwwwwwwwwwk." : y === 7 ? ".kwkkwwwppwwwkkwk." : row);
+  y === 6 ? ".kwwwwwwwwwwwwwwkwwk" : y === 7 ? ".kwkkwwwppwwwkkwkwwk" : row);
 const COLORS = { k: "#3b3a36", w: "#ffffff", o: "#f2a65a", p: "#f4a7b9", r: "#f7c6cf", y: "#e8b830" };
 
-function catSVG(pixels, withPaw) {
-  const s = 6, w = pixels[0].length * s, h = (pixels.length + 0) * s;
+function catSVG(pixels, wave) {
+  const s = 6, w = pixels[0].length * s, h = pixels.length * s;
+  const rect = (x, y, c) => `<rect x="${x*s}" y="${y*s}" width="${s}" height="${s}" fill="${COLORS[c]}"/>`;
   let rects = "";
-  pixels.forEach((row, y) => [...row].forEach((c, x) => {
-    if (COLORS[c]) rects += `<rect x="${x*s}" y="${y*s}" width="${s}" height="${s}" fill="${COLORS[c]}"/>`;
-  }));
-  // 招く手（顔の右によいしょとあげた肉球）
-  const PAW = [
-    ".kkk.",
-    "kwwwk",
-    "kwpwk",
-    "kwwwk",
-    ".kwk.",
-    ".kwk.",
-    ".kwk.",
-    ".kwk.",
-  ];
-  let pawRects = "";
-  if (withPaw) PAW.forEach((row, y) => [...row].forEach((c, x) => {
-    if (COLORS[c]) pawRects += `<rect x="${(16 + x)*s}" y="${(4 + y)*s}" width="${s}" height="${s}" fill="${COLORS[c]}"/>`;
-  }));
-  const paw = withPaw ? `<g class="paw">${pawRects}</g>` : "";
-  return `<svg viewBox="0 0 ${21 * s} ${h}" shape-rendering="crispEdges" role="img" aria-label="招き猫">${rects}${paw}</svg>`;
+  pixels.forEach((row, y) => [...row].forEach((c, x) => { if (COLORS[c]) rects += rect(x, y, c); }));
+  // あげた手の先（肉球）。腕は体の一部として上で描いてある
+  const PAW = [".kkk.", "kwwwk", "kwpwk", "kwwwk"];
+  let paw = "";
+  PAW.forEach((row, y) => [...row].forEach((c, x) => { if (COLORS[c]) paw += rect(15 + x, 1 + y, c); }));
+  return `<svg viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" role="img" aria-label="招き猫">${rects}<g class="${wave ? "paw" : ""}">${paw}</g></svg>`;
 }
 document.getElementById("cat").innerHTML = catSVG(AWAKE, true);
 document.getElementById("opencat").innerHTML = catSVG(AWAKE, true);
