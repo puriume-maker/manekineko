@@ -259,6 +259,7 @@
     <input id="boxyen" inputmode="numeric" placeholder="例：600" class="yeninput">
     <div class="row"><button class="sub" id="closecancel">もどる</button><button class="main" id="writenippo">日報を書いてもらう</button></div>
     <div class="nippo" id="nippo"></div>
+    <div class="row" id="readrow" style="display:none;justify-content:flex-start"><button class="sub" id="readnippo" disabled>🔊 声でも読んでもらう（準備中…）</button></div>
     <details id="notebox"><summary>店番ノート（招き猫の記憶）</summary><pre id="notetext"></pre></details>
     <div class="row" id="afterbtns" style="display:none">
       <button class="sub" id="sharenippo">LINEなどに送る</button>
@@ -751,11 +752,13 @@ document.getElementById("close").onclick = () => {
   document.getElementById("nippo").textContent = "";
   document.getElementById("notetext").textContent = note || "（まだ空っぽ。今日から書きはじめるよ）";
   document.getElementById("afterbtns").style.display = "none";
+  document.getElementById("readrow").style.display = "none";
   closing.classList.remove("hidden");
 };
 document.getElementById("closecancel").onclick = () => closing.classList.add("hidden");
 
-let lastNippo = "";
+let lastNippo = "", nippoVoice = null;
+document.getElementById("readnippo").onclick = () => playVoice(nippoVoice, document.getElementById("nippo").textContent);
 document.getElementById("writenippo").onclick = async () => {
   const box = document.getElementById("boxyen").value.trim();
   const nippoEl = document.getElementById("nippo");
@@ -777,7 +780,12 @@ document.getElementById("writenippo").onclick = async () => {
     document.getElementById("notetext").textContent = note;
     store("niwasaki_nippo_" + new Date().toISOString().slice(0, 10), { nippo: j.nippo, tapTotal: tapTotal(), box, sales });
     document.getElementById("afterbtns").style.display = "flex";
-    playVoice(await makeVoice(j.nippo), j.nippo);
+    // 声は欲しい時だけ。裏で先に作っておいて、押したらすぐ読む
+    const rb = document.getElementById("readnippo");
+    document.getElementById("readrow").style.display = "flex";
+    rb.disabled = true; rb.textContent = "🔊 声でも読んでもらう（準備中…）";
+    nippoVoice = null;
+    makeVoice(j.nippo).then(url => { nippoVoice = url; rb.disabled = false; rb.textContent = "🔊 声でも読んでもらう"; });
   } catch (e) {
     nippoEl.textContent = "わりな、いま頭がつながらねみてぇだ。ちょっと待って、もう一回押してけれ。";
   }
