@@ -82,6 +82,9 @@
   }
   .shinagaki span.out { opacity: 0.45; text-decoration: line-through; }
   .modes { display: grid; gap: 8px; }
+  .openmodes { max-width: 560px; text-align: left; }
+  .openhint:empty { display: none; }
+  .openhint { color: #b4542e !important; }
   .modes label { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
   .modes small { display: block; color: var(--sub); }
   .leftinput { width: 80px; font: inherit; font-size: 18px; padding: 6px 8px; border-radius: 8px; border: 2px solid var(--line); background: #fff; color: #3b3a36; text-align: right; -webkit-user-select: text; user-select: text; }
@@ -273,7 +276,12 @@
 <div class="open" id="open">
   <div class="cat" id="opencat"></div>
   <h1>庭先の店番</h1>
-  <p>店主さんへ：お店を開ける時に押してね。<br>押すと、声とカメラが使えるようになるよ。</p>
+  <p>店主さんへ：お店を開ける時に押してね。<br>押すと、声とカメラとマイクが使えるようになるよ。</p>
+  <div class="modes openmodes">
+    <label><input type="radio" name="mode2" value="miseban"><span><b>店番モード</b><small>お客さんは何もさわらない。品は入れでも入れねくてもいいよ</small></span></label>
+    <label><input type="radio" name="mode2" value="reji"><span><b>レジモード</b><small>お客さんが品をタップして合計を出す（品を並べてから）</small></span></label>
+  </div>
+  <p class="openhint" id="openhint"></p>
   <button class="main" id="openbtn">開店する</button>
   <button class="sub" id="ownerbtn">きょうの品を並べる</button>
 </div>
@@ -382,7 +390,7 @@ const SAMPLE = [
   { id: "shiso",  emoji: "🍃", name: "大葉",       unit: "束", price: 100, stock: 4 },
   { id: "kyuri",  emoji: "🥒", name: "きゅうり",   unit: "本", price: 100, stock: 6 },
 ];
-let ITEMS = SAMPLE.map(x => ({ ...x }));
+let ITEMS = []; // はじめは空っぽ（見本の品は置かない）
 try {
   const saved = JSON.parse(localStorage.getItem("niwasaki_items") || "null");
   if (Array.isArray(saved) && saved.length) ITEMS = saved;
@@ -522,10 +530,17 @@ let mode = load("niwasaki_mode", "miseban");
 function setMode(m) {
   mode = m === "reji" ? "reji" : "miseban";
   document.body.dataset.mode = mode;
-  document.querySelectorAll('input[name="mode"]').forEach(r => r.checked = r.value === mode);
+  document.querySelectorAll('input[name="mode"], input[name="mode2"]').forEach(r => r.checked = r.value === mode);
   store("niwasaki_mode", mode);
+  updateOpenHint();
 }
-document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = () => setMode(r.value));
+function updateOpenHint() {
+  const needItems = mode === "reji" && ITEMS.length === 0;
+  document.getElementById("openhint").textContent = needItems ? "レジモードは、先に「きょうの品を並べる」で品を入れでけれ。" : "";
+  document.getElementById("openbtn").disabled = needItems;
+  try { checkDraft(); } catch (e) {} // 品札の下書きがまだ無い時は何もしない
+}
+document.querySelectorAll('input[name="mode"], input[name="mode2"]').forEach(r => r.onchange = () => setMode(r.value));
 setMode(mode);
 
 // ---------- 品の表示 ----------
@@ -774,14 +789,18 @@ document.getElementById("openbtn").onclick = async () => {
 // ---------- 店主さん：話しことばから品札 ----------
 const owner = document.getElementById("owner");
 let draft = [];
-document.getElementById("ownerbtn").onclick = () => { owner.classList.remove("hidden"); document.getElementById("words").focus(); };
+document.getElementById("ownerbtn").onclick = () => {
+  draft = ITEMS.map(it => ({ ...it }));
+  renderDraft();
+  owner.classList.remove("hidden");
+};
 document.getElementById("ownercancel").onclick = () => owner.classList.add("hidden");
 
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
 function renderDraft() {
   const box = document.getElementById("fuda");
-  if (!draft.length) { box.innerHTML = ""; document.getElementById("ownerok").disabled = true; return; }
+  if (!draft.length) { box.innerHTML = ""; checkDraft(); return; }
   box.innerHTML = `<div class="fuda-head"><span></span><span>品</span><span>値段（円）</span><span>数</span><span>単位</span><span></span></div>` +
     draft.map((it, i) => `<div class="fuda-row" data-i="${i}">
       <div class="emo">${esc(it.emoji)}</div>
@@ -803,8 +822,10 @@ function renderDraft() {
   checkDraft();
 }
 function checkDraft() {
-  const ok = draft.length && draft.every(it => it.name && Number.isFinite(it.price) && it.price >= 0 && Number.isFinite(it.stock) && it.stock >= 0);
+  const filled = draft.every(it => it.name && Number.isFinite(it.price) && it.price >= 0 && Number.isFinite(it.stock) && it.stock >= 0);
+  const ok = filled && (draft.length > 0 || mode === "miseban");
   document.getElementById("ownerok").disabled = !ok;
+  document.getElementById("ownerok").textContent = draft.length === 0 ? "品なしで、それでええよ" : "それでええよ";
 }
 
 document.getElementById("ask").onclick = async () => {
@@ -835,7 +856,8 @@ document.getElementById("ownerok").onclick = () => {
   for (const k in cart) delete cart[k];
   render();
   owner.classList.add("hidden");
-  say("品札、並べだよ。<br>開店したら、ちゃんと店番するがらな。", false);
+  updateOpenHint();
+  say(ITEMS.length ? "品札、並べだよ。<br>開店したら、ちゃんと店番するがらな。" : "今日は品札なしだな。<br>開店したら、ちゃんと迎えるがらな。", false);
 };
 
 // ---------- 🎤 話して伝える（iPad の音声認識。使えない端末ではボタンを出さない） ----------
@@ -892,7 +914,9 @@ function updateCalc() {
 document.getElementById("close").onclick = () => {
   touch();
   let rows;
-  if (mode === "miseban") {
+  if (mode === "miseban" && ITEMS.length === 0) {
+    document.getElementById("closesum").innerHTML = `<p>${todayLabel()}　来てけだ人（カメラの目安） ${visits}人</p><p>今日は品札なしだがら、箱のお金だけ入れでけれ。</p>`;
+  } else if (mode === "miseban") {
     rows = ITEMS.map(it => `<tr><td>${esc(it.emoji)} ${esc(it.name)}</td><td class="n">朝 ${startStock[it.id] ?? it.stock}${esc(it.unit)}</td>
       <td class="n">のこり <input class="leftinput" data-id="${it.id}" inputmode="numeric" placeholder="${startStock[it.id] ?? it.stock}">${esc(it.unit)}</td></tr>`).join("");
     document.getElementById("closesum").innerHTML =
@@ -932,7 +956,7 @@ document.getElementById("writenippo").onclick = async () => {
         return {
           date: todayLabel(), mode, visits,
           items: ITEMS.map(it => ({ ...it, startStock: startStock[it.id] ?? it.stock })),
-          sales, tapTotal: mode === "miseban" ? ITEMS.reduce((a, it) => a + ((startStock[it.id] ?? it.stock) - it.stock) * it.price, 0) : tapTotal(),
+          sales, tapTotal: (mode === "miseban" && ITEMS.length === 0) ? null : mode === "miseban" ? ITEMS.reduce((a, it) => a + ((startStock[it.id] ?? it.stock) - it.stock) * it.price, 0) : tapTotal(),
           boxTotal: box === "" ? null : Number(box), note,
         };
       })()),
