@@ -5,8 +5,9 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!shopOK(req)) return res.status(403).json({ error: "shop code" });
 
-  const { scene = "greet", now, items = [], recent = [], cart = null } = req.body || {};
+  const { scene = "greet", now, items = [], recent = [], cart = null, note = "" } = req.body || {};
   const situation = {
+    店番ノート: note || undefined, // これまでの日にわかったこと（記憶）
     場面: { greet: "お客さんが近づいてきた", thanks: "お客さんがお金を入れてくれた" }[scene] || scene,
     いまの時刻: now,
     きょうの品: items.map((it) => ({ 名前: it.name, 値段: it.price, 残り: `${it.stock}${it.unit}` })),
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
       system: NEKO,
       messages: [{
         role: "user",
-        content: `いまの様子:\n${JSON.stringify(situation, null, 1)}\n\n招き猫として、ひとことだけ返してください。さっき言ったセリフとは違う言い方にしてください。セリフだけを書いてください。`,
+        content: `いまの様子:\n${JSON.stringify(situation, null, 1)}\n\n招き猫として、ひとことだけ返してください。さっき言ったセリフとは違う言い方にしてください。店番ノートにあることを、ときどき自然に一言まぜてもかまいません（毎回でなくてよい）。セリフだけを書いてください。`,
       }],
     });
     if (message.stop_reason === "refusal") return res.status(200).json({ line: null });

@@ -150,6 +150,25 @@
     .items { grid-template-columns: repeat(2, 1fr); }
   }
 
+  .colors { display: flex; align-items: center; gap: 10px; color: var(--sub); }
+  .colors button { width: 40px; height: 40px; border-radius: 999px; border: 2px solid var(--line); cursor: pointer; }
+  .colors button.on { border: 3px solid var(--mint-deep); }
+  .yeninput { font: inherit; font-size: 22px; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: #fff; color: #3b3a36; width: 200px; -webkit-user-select: text; user-select: text; }
+  .nippo:empty { display: none; }
+  .nippo { background: #fff; color: #3b3a36; border: 2px solid var(--ink); border-radius: 16px; padding: 16px 18px; font-size: 19px; line-height: 1.8; white-space: pre-wrap; }
+  .sumtable { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
+  .sumtable td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .sumtable td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  #notebox summary { cursor: pointer; color: var(--sub); }
+  #notebox pre { white-space: pre-wrap; font: inherit; font-size: 15px; background: var(--card); padding: 12px; border-radius: 12px; }
+
+  /* お店の色 */
+  body[data-theme="mint"]   { --bg: #dff3ec; --card: #f6fcf9; --line: #c9e6db; }
+  body[data-theme="ajisai"] { --bg: #e6e3f4; --card: #f8f7fd; --line: #d6d1ec; --mint-deep: #7a6fb8; --mint: #b3aade; }
+  body[data-theme="sakura"] { --bg: #f8e6e8; --card: #fff9fa; --line: #efd3d7; --mint-deep: #c47a86; --mint: #e7b3bb; }
+  body[data-theme="yoru"]   { --bg: #2b2f3a; --card: #363b48; --line: #4a5060; --ink: #e9e4d8; --sub: #b4ae9f; }
+  body[data-theme="yoru"] .bubble { background: #fffdf8; color: #3b3a36; }
+
   video, canvas.probe { display: none; }
 
   @media (max-width: 480px) {
@@ -180,7 +199,7 @@
 
   <div class="foot">
     <span id="camnote">📷 来てけだのに気づくために、カメラ使ってるよ。録画はしねがら安心してけれ。</span>
-    <button id="nap">おやすみさせる</button>
+    <span><button id="nap">おやすみさせる</button>　<button id="close">店じまい（店主さん）</button></span>
   </div>
 </main>
 
@@ -202,14 +221,38 @@
 <div class="owner hidden" id="owner">
   <div class="ownerbox">
     <h1>きょうの品を並べる</h1>
-    <p>招き猫に話しかけるみたいに書いてね。キーボードのマイクで話してもええよ。<br>例：「ミニトマト5袋150円、大葉が4束で100円、きゅうりも少し」</p>
+    <p>招き猫に話しかけるみたいに書いでけれ。キーボードのマイクでしゃべってもいいよ。<br>例：「ミニトマト5袋150円、大葉が4束で100円、きゅうりも少し」</p>
     <textarea id="words" rows="3" placeholder="今日はなにを並べる？"></textarea>
     <div class="row"><button class="main" id="ask">招き猫に頼む</button></div>
     <div class="neko-q" id="nekoq"></div>
     <div id="fuda"></div>
+    <div class="colors"><span>お店の色：</span>
+      <button data-theme="kinari" style="background:#f6f1e7" aria-label="生成り"></button>
+      <button data-theme="mint" style="background:#dff3ec" aria-label="ミント"></button>
+      <button data-theme="ajisai" style="background:#e6e3f4" aria-label="紫陽花"></button>
+      <button data-theme="sakura" style="background:#f8e6e8" aria-label="さくら"></button>
+      <button data-theme="yoru" style="background:#2b2f3a" aria-label="夜"></button>
+    </div>
     <div class="row">
       <button class="sub" id="ownercancel">もどる</button>
       <button class="main" id="ownerok" disabled>それでええよ</button>
+    </div>
+  </div>
+</div>
+
+<div class="owner hidden" id="closing">
+  <div class="ownerbox">
+    <h1>店じまい</h1>
+    <div id="closesum"></div>
+    <p>箱のお金を数えだら入れでけれ（数えでねば、空のままでいいよ）</p>
+    <input id="boxyen" inputmode="numeric" placeholder="例：600" class="yeninput">
+    <div class="row"><button class="sub" id="closecancel">もどる</button><button class="main" id="writenippo">日報を書いてもらう</button></div>
+    <div class="nippo" id="nippo"></div>
+    <details id="notebox"><summary>店番ノート（招き猫の記憶）</summary><pre id="notetext"></pre></details>
+    <div class="row" id="afterbtns" style="display:none">
+      <button class="sub" id="sharenippo">LINEなどに送る</button>
+      <button class="sub" id="exportbtn">記録を書き出す</button>
+      <button class="main" id="newday">また明日（記録をしまう）</button>
     </div>
   </div>
 </div>
@@ -282,7 +325,7 @@ async function askNeko(scene, extra = {}) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         scene, now: new Date().toLocaleString("ja-JP", { weekday: "short", hour: "2-digit", minute: "2-digit" }),
-        items: ITEMS, recent: recentLines, ...extra,
+        items: ITEMS, recent: recentLines, note, ...extra,
       }),
     });
     const j = await r.json();
@@ -291,7 +334,13 @@ async function askNeko(scene, extra = {}) {
 }
 function remember(line) { recentLines.push(line.replace(/<[^>]+>/g, "")); if (recentLines.length > 5) recentLines.shift(); }
 const cart = {};
-const sales = []; // 売れた記録（あとで日報の材料）
+// 売れた記録・朝の数・店番ノート（記憶）は全部この iPad の中だけに置く
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? d; } catch (e) { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const sales = load("niwasaki_sales", []);
+let note = load("niwasaki_note", "");
+let startStock = load("niwasaki_start", null) || Object.fromEntries(ITEMS.map(it => [it.id, it.stock]));
+store("niwasaki_start", startStock);
 
 // ---------- しゃべる ----------
 const bubble = document.getElementById("bubble");
@@ -430,8 +479,8 @@ document.getElementById("paid").onclick = () => {
   const bought = ITEMS.filter(it => cart[it.id]).map(it => ({ id: it.id, name: it.name, n: cart[it.id], price: it.price }));
   bought.forEach(b => { ITEMS.find(it => it.id === b.id).stock -= b.n; });
   saveItems();
-  sales.push({ at: new Date().toISOString(), items: bought, total: t });
-  try { localStorage.setItem("niwasaki_sales", JSON.stringify(sales)); } catch (e) {}
+  sales.push({ at: new Date().toISOString(), time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }), items: bought, total: t });
+  store("niwasaki_sales", sales);
   for (const k in cart) delete cart[k];
   render();
   const c = document.getElementById("cat");
@@ -590,10 +639,90 @@ document.getElementById("ask").onclick = async () => {
 document.getElementById("ownerok").onclick = () => {
   ITEMS = draft.map(it => ({ id: it.id, emoji: it.emoji || "🧺", name: it.name, unit: it.unit || "個", price: it.price, stock: it.stock }));
   saveItems();
+  startStock = Object.fromEntries(ITEMS.map(it => [it.id, it.stock])); store("niwasaki_start", startStock);
   for (const k in cart) delete cart[k];
   render();
   owner.classList.add("hidden");
   say("品札、並べだよ。<br>開店したら、ちゃんと店番するがらな。", false);
+};
+
+// ---------- お店の色 ----------
+function setTheme(t) {
+  if (t && t !== "kinari") document.body.dataset.theme = t; else delete document.body.dataset.theme;
+  document.querySelectorAll(".colors button").forEach(b => b.classList.toggle("on", b.dataset.theme === (t || "kinari")));
+  store("niwasaki_theme", t || "kinari");
+}
+document.querySelectorAll(".colors button").forEach(b => b.onclick = () => setTheme(b.dataset.theme));
+setTheme(load("niwasaki_theme", "kinari"));
+
+// ---------- 店じまい：日報と店番ノート ----------
+const closing = document.getElementById("closing");
+const yen = (n) => `${Number(n).toLocaleString("ja-JP")}円`;
+function tapTotal() { return sales.reduce((a, s) => a + s.total, 0); }
+function todayLabel() { return new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" }); }
+
+document.getElementById("close").onclick = () => {
+  touch();
+  const rows = ITEMS.map(it => {
+    const sold = sales.reduce((a, s) => a + (s.items.find(b => b.id === it.id)?.n || 0), 0);
+    return `<tr><td>${esc(it.emoji)} ${esc(it.name)}</td><td class="n">${sold}${esc(it.unit)} 売れた</td><td class="n">のこり ${it.stock}${esc(it.unit)}</td></tr>`;
+  }).join("");
+  document.getElementById("closesum").innerHTML =
+    `<p>${todayLabel()}　お客さん ${sales.length}回　タップの合計 <b>${yen(tapTotal())}</b></p><table class="sumtable">${rows}</table>`;
+  document.getElementById("nippo").textContent = "";
+  document.getElementById("notetext").textContent = note || "（まだ空っぽ。今日から書きはじめるよ）";
+  document.getElementById("afterbtns").style.display = "none";
+  closing.classList.remove("hidden");
+};
+document.getElementById("closecancel").onclick = () => closing.classList.add("hidden");
+
+let lastNippo = "";
+document.getElementById("writenippo").onclick = async () => {
+  const box = document.getElementById("boxyen").value.trim();
+  const nippoEl = document.getElementById("nippo");
+  nippoEl.textContent = "日報、書いでるがら、ちょっと待ってけれ……";
+  try {
+    const r = await fetch("/api/nippo", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: todayLabel(),
+        items: ITEMS.map(it => ({ ...it, startStock: startStock[it.id] ?? it.stock })),
+        sales, tapTotal: tapTotal(), boxTotal: box === "" ? null : Number(box), note,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.nippo) throw new Error();
+    lastNippo = `【${todayLabel()}の店番日報】\n${j.nippo}\n\nタップの合計：${yen(tapTotal())}${box !== "" ? `／箱のお金：${yen(box)}` : ""}`;
+    nippoEl.textContent = j.nippo;
+    note = j.note || note; store("niwasaki_note", note);
+    document.getElementById("notetext").textContent = note;
+    store("niwasaki_nippo_" + new Date().toISOString().slice(0, 10), { nippo: j.nippo, tapTotal: tapTotal(), box, sales });
+    document.getElementById("afterbtns").style.display = "flex";
+    playVoice(await makeVoice(j.nippo), j.nippo);
+  } catch (e) {
+    nippoEl.textContent = "わりな、いま頭がつながらねみてぇだ。ちょっと待って、もう一回押してけれ。";
+  }
+};
+
+document.getElementById("sharenippo").onclick = async () => {
+  try {
+    if (navigator.share) await navigator.share({ text: lastNippo });
+    else { await navigator.clipboard.writeText(lastNippo); alert("日報をコピーしたよ"); }
+  } catch (e) {}
+};
+document.getElementById("exportbtn").onclick = () => {
+  const data = { 書き出した日: new Date().toISOString(), 品: ITEMS, 売れた記録: sales, 店番ノート: note };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  a.download = `miseban_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+};
+document.getElementById("newday").onclick = () => {
+  sales.length = 0; store("niwasaki_sales", sales);
+  startStock = Object.fromEntries(ITEMS.map(it => [it.id, it.stock])); store("niwasaki_start", startStock);
+  closing.classList.add("hidden");
+  say("今日もおつかれさん。<br>また明日な。", false);
+  sleep();
 };
 
 render();
