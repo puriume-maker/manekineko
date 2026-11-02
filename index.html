@@ -34,8 +34,49 @@
   }
   .cat { width: clamp(110px, 22vw, 250px); flex-shrink: 0; }
   .cat svg { width: 100%; height: auto; display: block; }
+  /* 猫の動き：置物の招き猫がそっと動くくらいの、やさしい動き */
+  .cat svg .body { animation: breathe 3.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes breathe { 50% { transform: scaleY(1.015); } }
+  .cat svg .eyes { animation: blink 5s infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+  @keyframes blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+  .cat svg .paw { animation: beckon 2.4s ease-in-out infinite; }
+  @keyframes beckon { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+  .cat svg .tongue { opacity: 0; }
+  .cat.talking svg .mouth { animation: talk 0.28s steps(2) infinite; }
+  .cat.talking svg .tongue { animation: tongue 0.28s steps(2) infinite; }
+  @keyframes talk { 50% { transform: translateY(1px); } }
+  @keyframes tongue { 0% { opacity: 0; } 50% { opacity: 1; } }
   .cat.wave .paw { animation: wave 0.45s ease-in-out 4; }
-  @keyframes wave { 50% { transform: translateY(-4px); } }
+  @keyframes wave { 50% { transform: translateY(-7px); } }
+  .cat.hop svg { animation: hop 0.5s ease-out 2; }
+  @keyframes hop { 40% { transform: translateY(-12px); } }
+  .cat.stretch svg { animation: stretch 0.9s ease-out 1; transform-origin: 50% 100%; }
+  @keyframes stretch { 30% { transform: scale(1.06, 0.94); } 60% { transform: scale(0.97, 1.06); } }
+  .sleep .cat svg .body { animation: sleepbreath 4.5s ease-in-out infinite; }
+  @keyframes sleepbreath { 50% { transform: scale(1.03, 1.035); } }
+  .sleep .cat svg .eyes { animation: none; }
+  @media (prefers-reduced-motion: reduce) { .cat svg *, .cat svg { animation: none !important; } }
+
+  /* 店番モード：お客さんは何もさわらない。猫が主役、品は値札として見せるだけ */
+  body[data-mode="miseban"] .shop { flex-direction: column; align-items: center; flex: 1; justify-content: center; gap: clamp(16px, 3vh, 32px); }
+  body[data-mode="miseban"] .shop .cat { width: clamp(200px, 42vmin, 440px); }
+  body[data-mode="miseban"] .shop .bubble { flex: none; min-height: 0; width: 100%; max-width: 860px; text-align: center; font-size: clamp(22px, 3.4vmin, 38px); }
+  body[data-mode="miseban"] .shop .cat { width: clamp(220px, 48vmin, 480px); }
+  body[data-mode="miseban"] .shop .bubble::before { display: none; }
+  body[data-mode="miseban"] #items, body[data-mode="miseban"] .total, body[data-mode="miseban"] main > h2 { display: none; }
+  .shinagaki { display: none; }
+  body[data-mode="miseban"] .shinagaki {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 14px; margin-top: 14px;
+  }
+  .shinagaki span {
+    background: var(--card); border: 2px solid var(--line); border-radius: 999px; padding: 8px 16px;
+    font-size: clamp(16px, 2.5vmin, 26px); color: var(--ink);
+  }
+  .shinagaki span.out { opacity: 0.45; text-decoration: line-through; }
+  .modes { display: grid; gap: 8px; }
+  .modes label { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+  .modes small { display: block; color: var(--sub); }
+  .leftinput { width: 80px; font: inherit; font-size: 18px; padding: 6px 8px; border-radius: 8px; border: 2px solid var(--line); background: #fff; color: #3b3a36; text-align: right; -webkit-user-select: text; user-select: text; }
   .bubble {
     flex: 1; position: relative; background: #fff; border: 2px solid var(--ink);
     border-radius: 18px; padding: clamp(14px, 2vw, 24px) clamp(16px, 2.4vw, 28px);
@@ -196,6 +237,7 @@
     <div class="bubble" id="bubble">いらっしゃい。</div>
   </section>
 
+  <div class="shinagaki" id="shinagaki"></div>
   <h2>きょうの品（さわると数がふえるよ）</h2>
   <section class="items" id="items"></section>
 
@@ -236,6 +278,10 @@
     <div class="row"><button class="sub" id="mic" hidden>🎤 話して伝える</button><button class="main" id="ask">招き猫に頼む</button></div>
     <div class="neko-q" id="nekoq"></div>
     <div id="fuda"></div>
+    <div class="modes">
+      <label><input type="radio" name="mode" value="miseban"><span><b>店番モード</b><small>お客さんは何もさわらない。猫が迎えて見送るだけ。店じまいで残りの数を数える（100円均一などに）</small></span></label>
+      <label><input type="radio" name="mode" value="reji"><span><b>レジモード</b><small>お客さんが品をタップして合計を出す（品や値段がいろいろな店に）</small></span></label>
+    </div>
     <div class="colors"><span>お店の色：</span>
       <button data-theme="kinari" style="background:#f6f1e7" aria-label="生成り"></button>
       <button data-theme="mint" style="background:#dff3ec" aria-label="ミント"></button>
@@ -300,13 +346,22 @@ const COLORS = { k: "#3b3a36", w: "#ffffff", o: "#f2a65a", p: "#f4a7b9", r: "#f7
 function catSVG(pixels, wave) {
   const s = 6, w = pixels[0].length * s, h = pixels.length * s;
   const rect = (x, y, c) => `<rect x="${x*s}" y="${y*s}" width="${s}" height="${s}" fill="${COLORS[c]}"/>`;
-  let rects = "";
-  pixels.forEach((row, y) => [...row].forEach((c, x) => { if (COLORS[c]) rects += rect(x, y, c); }));
+  // 目（6〜7行目の黒）と口（8行目まんなか）は別に描いて、まばたき・口ぱくできるようにする
+  const isEye = (x, y) => (y === 6 || y === 7) && (x === 4 || x === 5 || x === 12 || x === 13);
+  const isMouth = (x, y) => y === 8 && (x === 8 || x === 9);
+  let rects = "", eyes = "", mouth = "";
+  pixels.forEach((row, y) => [...row].forEach((c, x) => {
+    if (!COLORS[c]) return;
+    if (isEye(x, y) && c === "k") { rects += rect(x, y, "w"); eyes += rect(x, y, c); }
+    else if (isMouth(x, y)) { rects += rect(x, y, "w"); mouth += rect(x, y, c); }
+    else rects += rect(x, y, c);
+  }));
+  mouth += `<rect class="tongue" x="${8*s}" y="${9*s}" width="${2*s}" height="${s}" fill="#e98a9a"/>`;
   // あげた手の先（肉球）。腕は体の一部として上で描いてある
   const PAW = [".kkk.", "kwwwk", "kwpwk", "kwwwk"];
   let paw = "";
   PAW.forEach((row, y) => [...row].forEach((c, x) => { if (COLORS[c]) paw += rect(15 + x, 1 + y, c); }));
-  return `<svg viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" role="img" aria-label="招き猫">${rects}<g class="${wave ? "paw" : ""}">${paw}</g></svg>`;
+  return `<svg viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" role="img" aria-label="招き猫"><g class="body">${rects}<g class="eyes">${eyes}</g><g class="mouth">${mouth}</g><g class="${wave ? "paw" : ""}">${paw}</g></g></svg>`;
 }
 document.getElementById("cat").innerHTML = catSVG(AWAKE, true);
 document.getElementById("opencat").innerHTML = catSVG(AWAKE, true);
@@ -369,6 +424,9 @@ if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged 
 // 声は2段構え：Gemini の声（Laomedeia）が作れたらそれ、だめなら iPad の声
 const player = new Audio();
 player.playsInline = true;
+const setTalking = (on) => document.getElementById("cat").classList.toggle("talking", on);
+player.addEventListener("play", () => setTalking(true));
+["ended", "pause", "error"].forEach(ev => player.addEventListener(ev, () => setTalking(false)));
 const plain = (html) => html.replace(/<br>/g, "、").replace(/<[^>]+>/g, "");
 
 function speakFallback(text) {
@@ -377,6 +435,7 @@ function speakFallback(text) {
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP"; if (voice) u.voice = voice;
   u.rate = 1.0; u.pitch = 1.15;
+  u.onstart = () => setTalking(true); u.onend = u.onerror = () => setTalking(false);
   speechSynthesis.speak(u);
 }
 async function makeVoice(text) {
@@ -450,6 +509,17 @@ async function prepareThanks() {
 // 時間がたったら（朝→昼など）作り直す
 setInterval(() => { if (shopOpen && (!ready || Date.now() - readyAt > 15 * 60 * 1000)) prepareGreeting(); }, 60 * 1000);
 
+// ---------- モード：店番（お客さんは何もさわらない）／レジ（タップで合計） ----------
+let mode = load("niwasaki_mode", "miseban");
+function setMode(m) {
+  mode = m === "reji" ? "reji" : "miseban";
+  document.body.dataset.mode = mode;
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.checked = r.value === mode);
+  store("niwasaki_mode", mode);
+}
+document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = () => setMode(r.value));
+setMode(mode);
+
 // ---------- 品の表示 ----------
 function total() { return ITEMS.reduce((s, it) => s + (cart[it.id] || 0) * it.price, 0); }
 
@@ -468,6 +538,8 @@ function render() {
     card.querySelector(".minus").onclick = () => unpick(it);
     box.appendChild(card);
   });
+  document.getElementById("shinagaki").innerHTML = ITEMS.map(it =>
+    `<span class="${it.stock === 0 ? "out" : ""}">${esc(it.emoji)} ${esc(it.name)} ${it.price}円</span>`).join("");
   document.getElementById("yen").textContent = total() + "円";
   document.getElementById("paid").disabled = total() === 0;
 }
@@ -510,7 +582,7 @@ document.getElementById("paid").onclick = () => {
   for (const k in cart) delete cart[k];
   render();
   const c = document.getElementById("cat");
-  c.classList.remove("wave"); void c.offsetWidth; c.classList.add("wave");
+  c.classList.remove("wave", "hop"); void c.offsetWidth; c.classList.add("wave", "hop");
   // お礼は先に作っておいた声をすぐ鳴らす（金額は字だけで見せる）
   const th = readyThanks; readyThanks = null;
   const thText = th?.text || FIXED.arigato;
@@ -535,14 +607,20 @@ const FIXED = {
   mata: "まだ来てけれな〜。買う時は、画面さわってけれな。",
   yogu: "よぐ来たなぁ。ゆっくり見でってけれ。",
   arigato: "ありがとさん。おいしぐ食べでけれな。",
+  bye: "ありがとさん。お代は箱さ入れでけれな。まだ来てけれ〜。",
 };
+let visits = load("niwasaki_visits", 0);
+function newVisit() { visit = { active: true, tapped: false, called: false }; visits++; store("niwasaki_visits", visits); }
 const fixedVoice = {};
-async function prepareFixedVoices() { for (const k of ["yogu", "arigato", "matte", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
+async function prepareFixedVoices() { for (const k of ["yogu", "bye", "arigato", "matte", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
 setInterval(() => {
   if (!cameraOn || asleep || !visit.active) return;
   const now = Date.now();
   if (now - lastMotion < LEAVE_AFTER || now - lastTap < LEAVE_AFTER) return;
-  if (Object.keys(cart).length && !visit.called) {
+  if (mode === "miseban") {
+    // 店番モード：だれにでも同じ見送り（品物を持っていったかは猫にはわからないので、疑わない）
+    say(FIXED.bye, true, fixedVoice.bye ?? null);
+  } else if (Object.keys(cart).length && !visit.called) {
     visit.called = true;
     say(FIXED.matte, true, fixedVoice.matte ?? null);
   } else if (!visit.tapped) {
@@ -564,9 +642,11 @@ function sleep() {
 function wake(byMotion) {
   touch();
   if (!asleep) return;
-  visit = { active: true, tapped: false, called: false };
+  newVisit();
   asleep = false;
   sleepEl.classList.add("hidden");
+  const c = document.getElementById("cat");
+  c.classList.remove("stretch"); void c.offsetWidth; c.classList.add("stretch");
   if (ready) {
     const g = ready; ready = null;
     say(g.text, true, g.url); remember(g.text);
@@ -611,7 +691,7 @@ function checkMotion() {
     if (diff > MOTION) {
       lastMotion = Date.now();
       if (asleep) wake(true);
-      else { touch(); if (!visit.active) visit = { active: true, tapped: false, called: false }; }
+      else { touch(); if (!visit.active) newVisit(); }
     }
   }
   prev = gray;
@@ -741,14 +821,39 @@ const yen = (n) => `${Number(n).toLocaleString("ja-JP")}円`;
 function tapTotal() { return sales.reduce((a, s) => a + s.total, 0); }
 function todayLabel() { return new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" }); }
 
+// 店番モードは、店主さんが数えた残りの数から売上を計算する（ふつうの足し算・AIは数えない）
+function countedSales() {
+  return ITEMS.map(it => {
+    const inp = document.querySelector(`.leftinput[data-id="${it.id}"]`);
+    const start = startStock[it.id] ?? it.stock;
+    const left = inp && inp.value.trim() !== "" ? Math.max(0, Math.min(start, Number(inp.value))) : start;
+    return { it, start, left, sold: start - left };
+  });
+}
+function calcTotal() {
+  return mode === "miseban" ? countedSales().reduce((a, r) => a + r.sold * r.it.price, 0) : tapTotal();
+}
+function updateCalc() {
+  const el = document.getElementById("calcyen");
+  if (el) el.textContent = yen(calcTotal());
+}
 document.getElementById("close").onclick = () => {
   touch();
-  const rows = ITEMS.map(it => {
-    const sold = sales.reduce((a, s) => a + (s.items.find(b => b.id === it.id)?.n || 0), 0);
-    return `<tr><td>${esc(it.emoji)} ${esc(it.name)}</td><td class="n">${sold}${esc(it.unit)} 売れた</td><td class="n">のこり ${it.stock}${esc(it.unit)}</td></tr>`;
-  }).join("");
-  document.getElementById("closesum").innerHTML =
-    `<p>${todayLabel()}　お客さん ${sales.length}回　タップの合計 <b>${yen(tapTotal())}</b></p><table class="sumtable">${rows}</table>`;
+  let rows;
+  if (mode === "miseban") {
+    rows = ITEMS.map(it => `<tr><td>${esc(it.emoji)} ${esc(it.name)}</td><td class="n">朝 ${startStock[it.id] ?? it.stock}${esc(it.unit)}</td>
+      <td class="n">のこり <input class="leftinput" data-id="${it.id}" inputmode="numeric" placeholder="${startStock[it.id] ?? it.stock}">${esc(it.unit)}</td></tr>`).join("");
+    document.getElementById("closesum").innerHTML =
+      `<p>${todayLabel()}　来てけだ人（カメラの目安） ${visits}人</p><p>棚の残りを数えで入れでけれ。計算上の売上 <b id="calcyen">0円</b></p><table class="sumtable">${rows}</table>`;
+    document.querySelectorAll(".leftinput").forEach(i => i.oninput = updateCalc);
+  } else {
+    rows = ITEMS.map(it => {
+      const sold = sales.reduce((a, s) => a + (s.items.find(b => b.id === it.id)?.n || 0), 0);
+      return `<tr><td>${esc(it.emoji)} ${esc(it.name)}</td><td class="n">${sold}${esc(it.unit)} 売れた</td><td class="n">のこり ${it.stock}${esc(it.unit)}</td></tr>`;
+    }).join("");
+    document.getElementById("closesum").innerHTML =
+      `<p>${todayLabel()}　お客さん ${sales.length}回　タップの合計 <b>${yen(tapTotal())}</b></p><table class="sumtable">${rows}</table>`;
+  }
   document.getElementById("nippo").textContent = "";
   document.getElementById("notetext").textContent = note || "（まだ空っぽ。今日から書きはじめるよ）";
   document.getElementById("afterbtns").style.display = "none";
@@ -766,15 +871,23 @@ document.getElementById("writenippo").onclick = async () => {
   try {
     const r = await fetch("/api/nippo", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: todayLabel(),
-        items: ITEMS.map(it => ({ ...it, startStock: startStock[it.id] ?? it.stock })),
-        sales, tapTotal: tapTotal(), boxTotal: box === "" ? null : Number(box), note,
-      }),
+      body: JSON.stringify((() => {
+        if (mode === "miseban") {
+          // 数えてもらった残りを棚の数に反映
+          countedSales().forEach(r => { r.it.stock = r.left; });
+          saveItems(); render();
+        }
+        return {
+          date: todayLabel(), mode, visits,
+          items: ITEMS.map(it => ({ ...it, startStock: startStock[it.id] ?? it.stock })),
+          sales, tapTotal: mode === "miseban" ? ITEMS.reduce((a, it) => a + ((startStock[it.id] ?? it.stock) - it.stock) * it.price, 0) : tapTotal(),
+          boxTotal: box === "" ? null : Number(box), note,
+        };
+      })()),
     });
     const j = await r.json();
     if (!r.ok || !j.nippo) throw new Error();
-    lastNippo = `【${todayLabel()}の店番日報】\n${j.nippo}\n\nタップの合計：${yen(tapTotal())}${box !== "" ? `／箱のお金：${yen(box)}` : ""}`;
+    lastNippo = `【${todayLabel()}の店番日報】\n${j.nippo}\n\n計算上の売上：${yen(calcTotal())}${box !== "" ? `／箱のお金：${yen(box)}` : ""}`;
     nippoEl.textContent = j.nippo;
     note = j.note || note; store("niwasaki_note", note);
     document.getElementById("notetext").textContent = note;
@@ -806,6 +919,7 @@ document.getElementById("exportbtn").onclick = () => {
 };
 document.getElementById("newday").onclick = () => {
   sales.length = 0; store("niwasaki_sales", sales);
+  visits = 0; store("niwasaki_visits", visits);
   startStock = Object.fromEntries(ITEMS.map(it => [it.id, it.stock])); store("niwasaki_start", startStock);
   closing.classList.add("hidden");
   say("今日もおつかれさん。<br>また明日な。", false);

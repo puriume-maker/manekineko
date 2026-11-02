@@ -13,12 +13,14 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   if (!shopOK(req)) return res.status(403).json({ error: "shop code" });
 
-  const { date, items = [], sales = [], tapTotal = 0, boxTotal = null, note = "" } = req.body || {};
+  const { date, mode = "reji", visits = null, items = [], sales = [], tapTotal = 0, boxTotal = null, note = "" } = req.body || {};
   const record = {
     日付: date,
     並べた品: items.map((it) => ({ 名前: it.name, 値段: it.price, 朝の数: it.startStock, 残り: it.stock, 単位: it.unit })),
-    売れた記録: sales.map((s) => ({ 時刻: s.time, 品: s.items.map((b) => `${b.name}×${b.n}`).join("、"), 合計: s.total })),
-    タップの合計: tapTotal,
+    売れた記録: mode === "miseban" ? "（店番モードなので、時刻ごとの記録はない）" : sales.map((s) => ({ 時刻: s.time, 品: s.items.map((b) => `${b.name}×${b.n}`).join("、"), 合計: s.total })),
+    売上の数え方: mode === "miseban" ? "店主が数えた残りの数から計算（お客さんは画面をさわらない）" : "お客さんのタップの合計",
+    計算上の売上: tapTotal,
+    来た人数_カメラの目安: visits,
     店主が数えた箱のお金: boxTotal,
     これまでの店番ノート: note || "（まだない）",
   };
