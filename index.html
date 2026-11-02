@@ -164,7 +164,7 @@
   </section>
 
   <div class="foot">
-    <span id="camnote">📷 来てくれたのに気づくためにカメラを使っとるよ。録画はせえへん。</span>
+    <span id="camnote">📷 来てけだのに気づくために、カメラ使ってるよ。録画はしねがら安心してけれ。</span>
     <button id="nap">おやすみさせる</button>
   </div>
 </main>
@@ -173,7 +173,7 @@
   <div class="cat" id="sleepcat"></div>
   <div class="zzz">z z z</div>
   <p>店番、うとうと中。<br>近づくか、画面にさわると起きるよ。</p>
-  <small>📷 動いたのに気づくだけ。録画はせえへん。</small>
+  <small>📷 動いだのに気づくだけ。録画はしねよ。</small>
 </div>
 
 <div class="open" id="open">
@@ -303,15 +303,39 @@ function pickVoice() {
 }
 if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 
-function say(html, speak = true) {
-  bubble.innerHTML = html;
-  if (!speak || !("speechSynthesis" in window)) return;
-  const text = html.replace(/<br>/g, "、").replace(/<[^>]+>/g, "");
+// 声は2段構え：Gemini の声（Laomedeia）が作れたらそれ、だめなら iPad の声
+const player = new Audio();
+player.playsInline = true;
+const plain = (html) => html.replace(/<br>/g, "、").replace(/<[^>]+>/g, "");
+
+function speakFallback(text) {
+  if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP"; if (voice) u.voice = voice;
   u.rate = 1.0; u.pitch = 1.15;
   speechSynthesis.speak(u);
+}
+async function makeVoice(text) {
+  try {
+    const r = await fetch("/api/koe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    if (r.status !== 200) return null;
+    return URL.createObjectURL(await r.blob());
+  } catch (e) { return null; }
+}
+function playVoice(url, text) {
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  player.pause();
+  if (!url) { speakFallback(text); return; }
+  player.src = url;
+  player.play().catch(() => speakFallback(text));
+}
+// html を吹き出しに出す。voiceUrl を渡せばその声、speak=true だけなら今から声を作る
+async function say(html, speak = true, voiceUrl = null) {
+  bubble.innerHTML = html;
+  if (!speak) return;
+  const text = plain(html);
+  playVoice(voiceUrl ?? await makeVoice(text), text);
 }
 
 // ---------- いらっしゃい（いまは決まり文句。あとで Claude がその場で考える） ----------
@@ -326,12 +350,28 @@ function greeting() {
   const few = left.find(it => it.stock <= 2);
   const lines = [];
   const t = timeWord();
-  lines.push(t === "朝" ? "おはようさん、いらっしゃい。" : t === "昼" ? "いらっしゃい、ようこそ。" : "夕方までおつかれさん、いらっしゃい。");
-  if (!left.length) return "いらっしゃい。<br>ごめんな、今日はもう売り切れなんよ。";
-  if (few) lines.push(`${few.name}はあと${few.stock}${few.unit}やで。`);
-  else lines.push(`今日は${left[Math.floor(Math.random() * left.length)].name}がええ感じや。`);
+  lines.push(t === "朝" ? "おはようございます、よぐ来たなぁ。" : t === "昼" ? "よぐ来たなぁ、いらっしゃい。" : "おばんです、よぐ来たなぁ。");
+  if (!left.length) return "よぐ来たなぁ。<br>わりな、今日はもう売り切れだんだ。";
+  if (few) lines.push(`${few.name}だば、あと${few.stock}${few.unit}だよ。`);
+  else lines.push(`今日は${left[Math.floor(Math.random() * left.length)].name}がいい感じだよ。`);
   return lines.join("<br>");
 }
+
+// うとうとしとる間に、次の「いらっしゃい」を声まで作っておく（来てくれた瞬間にしゃべれるように）
+let ready = null, preparing = false, readyAt = 0;
+async function prepareGreeting() {
+  if (preparing) return;
+  preparing = true;
+  try {
+    const line = (await askNeko("greet")) || greeting();
+    const url = await makeVoice(plain(line));
+    if (ready?.url) URL.revokeObjectURL(ready.url);
+    ready = { text: line, url };
+    readyAt = Date.now();
+  } finally { preparing = false; }
+}
+// 時間がたったら（朝→昼など）作り直す
+setInterval(() => { if (shopOpen && (!ready || Date.now() - readyAt > 15 * 60 * 1000)) prepareGreeting(); }, 60 * 1000);
 
 // ---------- 品の表示 ----------
 function total() { return ITEMS.reduce((s, it) => s + (cart[it.id] || 0) * it.price, 0); }
@@ -358,11 +398,11 @@ function render() {
 function pick(it) {
   touch();
   const n = cart[it.id] || 0;
-  if (it.stock === 0) { say(`${it.name}は売り切れやねん、ごめんな。`); return; }
-  if (n >= it.stock) { say(`${it.name}は、それで最後なんよ。`); return; }
+  if (it.stock === 0) { say(`${it.name}は売り切れだんだ、わりな。`, false); return; }
+  if (n >= it.stock) { say(`${it.name}は、それで最後だよ。`, false); return; }
   cart[it.id] = n + 1;
   render();
-  say(`${it.name}、${cart[it.id]}${it.unit}やね。<br>ぜんぶで <b>${total()}円</b> やで。`);
+  say(`${it.name}、${cart[it.id]}${it.unit}な。<br>ぜんぶで <b>${total()}円</b> だよ。`, false);
 }
 
 function unpick(it) {
@@ -371,15 +411,15 @@ function unpick(it) {
   if (!cart[it.id]) delete cart[it.id];
   render();
   const n = cart[it.id] || 0;
-  say(n ? `${it.name}、${n}${it.unit}にしといたで。<br>ぜんぶで <b>${total()}円</b>。`
-        : `${it.name}はやめとくんやね。<br>ぜんぶで <b>${total()}円</b>。`);
+  say(n ? `${it.name}、${n}${it.unit}にしたよ。<br>ぜんぶで <b>${total()}円</b>。`
+        : `${it.name}はやめとぐんだな。<br>ぜんぶで <b>${total()}円</b>。`, false);
 }
 
 document.getElementById("reset").onclick = () => {
   touch();
   for (const k in cart) delete cart[k];
   render();
-  say("はいはい、やりなおしね。<br>ゆっくり選んでってな。");
+  say("はいはい、やりなおしな。<br>ゆっくり選んでってけれ。", false);
 };
 
 document.getElementById("paid").onclick = () => {
@@ -394,10 +434,11 @@ document.getElementById("paid").onclick = () => {
   render();
   const c = document.getElementById("cat");
   c.classList.remove("wave"); void c.offsetWidth; c.classList.add("wave");
-  say(`${t}円、おおきに。`);
-  askNeko("thanks", { cart: { 品: bought.map(b => `${b.name}×${b.n}`), 合計: t } }).then(line => {
-    const text = line ? `${t}円、おおきに。<br>${line}` : `${t}円、おおきに。<br>おいしく食べてな。またおいで。`;
-    say(text); remember(text);
+  say(`${t}円、ありがとさん。`, false);
+  askNeko("thanks", { cart: { 品: bought.map(b => `${b.name}×${b.n}`), 合計: t } }).then(async line => {
+    const text = line || `${t}円、ありがとさん。<br>おいしぐ食べでけれな。まだ来てけれ。`;
+    await say(text); remember(text);
+    prepareGreeting(); // 残りの数が変わったので、次のあいさつを作り直す
   });
 };
 
@@ -420,11 +461,14 @@ function wake(byMotion) {
   if (!asleep) return;
   asleep = false;
   sleepEl.classList.add("hidden");
-  bubble.innerHTML = "……ん？";
-  askNeko("greet").then(line => {
-    const text = line || greeting();
-    say(text); remember(text);
-  });
+  if (ready) {
+    const g = ready; ready = null;
+    say(g.text, true, g.url); remember(g.text);
+    setTimeout(prepareGreeting, 20 * 1000); // 次のお客さんの分を、少ししてから作っておく
+  } else {
+    bubble.innerHTML = "……ん？";
+    askNeko("greet").then(line => { const text = line || greeting(); say(text); remember(text); });
+  }
 }
 sleepEl.addEventListener("click", () => wake(false));
 document.getElementById("nap").onclick = sleep;
@@ -444,7 +488,7 @@ async function startCamera() {
     await video.play();
     setInterval(checkMotion, 400);
   } catch (e) {
-    document.getElementById("camnote").textContent = "📷 カメラが使えんかったので、画面にさわったら起きるよ。";
+    document.getElementById("camnote").textContent = "📷 カメラ使えねがったがら、画面ささわれば起ぎるよ。";
   }
 }
 function checkMotion() {
@@ -469,12 +513,19 @@ async function keepScreenOn() {
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wakeLock) keepScreenOn(); });
 
+let shopOpen = false;
 document.getElementById("openbtn").onclick = async () => {
   document.getElementById("open").classList.add("hidden");
+  shopOpen = true;
   keepScreenOn();
-  say("開店や。<br>今日もよろしゅう。");
+  // iPad は最初のタッチの時に一回鳴らしておかないと、あとで声が出せない
+  player.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+  player.play().catch(() => {});
+  if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+  say("開店だよ。<br>今日もよろしくな。");
   startCamera();
   touch();
+  prepareGreeting();
 };
 
 // ---------- 店主さん：話しことばから品札 ----------
@@ -526,11 +577,11 @@ document.getElementById("ask").onclick = async () => {
     const missing = draft.filter(it => it.price == null || it.stock == null).map(it =>
       `${it.name}の${it.price == null && it.stock == null ? "値段と数" : it.price == null ? "値段" : "数"}`);
     q.textContent = j.question
-      || (missing.length ? `${missing.join("、")}は、なんぼにする？ オレンジのとこに入れてな。` : "")
-      || (draft.length ? "こんな札でどうやろ？ 数字だけ見たってな。" : "ごめんな、品が見つからんかった。");
+      || (missing.length ? `${missing.join("、")}は、なんぼにする？ オレンジのとこさ入れでけれ。` : "")
+      || (draft.length ? "こんな札でどうだべ？ 数字だけ見でけれ。" : "わりな、品が見つけらんねがった。");
     renderDraft();
   } catch (e) {
-    q.textContent = "ごめんな、いま頭がつながらんみたい。ちょっと待ってもう一回押してな。";
+    q.textContent = "わりな、いま頭がつながらねみてぇだ。ちょっと待って、もう一回押してけれ。";
   }
 };
 
@@ -540,7 +591,7 @@ document.getElementById("ownerok").onclick = () => {
   for (const k in cart) delete cart[k];
   render();
   owner.classList.add("hidden");
-  say("品札、並べといたで。<br>開店したら、ちゃんと店番するわな。", false);
+  say("品札、並べだよ。<br>開店したら、ちゃんと店番するがらな。", false);
 };
 
 render();

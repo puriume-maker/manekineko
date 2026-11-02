@@ -12,7 +12,7 @@ const Fuda = z.object({
     price: z.number().nullable().describe("1つの値段（円）。言われていなければ null"),
     stock: z.number().nullable().describe("並べる数。言われていなければ null"),
   })),
-  question: z.string().describe("値段や数が言われていない品があれば、それを店主に聞くやさしい一文（関西ことば）。全部そろっていれば空文字"),
+  question: z.string().describe("値段や数が言われていない品があれば、それを店主に聞くやさしい一文（やわらかい秋田弁）。全部そろっていれば空文字"),
 });
 
 export default async function handler(req, res) {
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       system: "庭先の無人販売所の店主が、今日並べる品を話しことばで伝えます。言われたことだけを品札にしてください。言われていない値段や数は推測せず null にしてください。",
       messages: [{ role: "user", content: words }],
     });
-    if (!response.parsed_output) return res.status(200).json({ items: [], question: "ごめんな、うまく聞き取れんかった。もう一回言うてくれる？" });
+    if (!response.parsed_output) return res.status(200).json({ items: [], question: "わりな、うまぐ聞き取れねがった。もう一回しゃべってけれ。" });
     return res.status(200).json(response.parsed_output);
   } catch (e) {
     console.error(e);
