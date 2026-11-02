@@ -66,7 +66,8 @@
   .item .left { color: var(--sub); font-size: clamp(13px, 1.9vmin, 18px); }
   .item .count {
     position: absolute; top: 12px; right: 12px; background: var(--mint); color: #fff; border-radius: 999px;
-    min-width: 30px; text-align: center; font-weight: bold; padding: 2px 8px; visibility: hidden;
+    min-width: 30px; text-align: center; font-weight: bold; padding: 4px 12px; visibility: hidden;
+    background: var(--mint-deep); font-size: clamp(14px, 2.2vmin, 20px);
   }
   .item.picked { border-color: var(--mint-deep); }
   .item.picked .count { visibility: visible; }
@@ -169,6 +170,11 @@
   body[data-theme="yoru"]   { --bg: #2b2f3a; --card: #363b48; --line: #4a5060; --ink: #e9e4d8; --sub: #b4ae9f; }
   body[data-theme="yoru"] .bubble { background: #fffdf8; color: #3b3a36; }
 
+  .tiny { margin: 0; text-align: right; }
+  .tiny button { background: none; border: 0; color: var(--sub); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+  #mic { font-size: clamp(18px, 2.2vw, 26px); }
+  #mic.listening { background: var(--mint); color: #fff; }
+
   video, canvas.probe { display: none; }
 
   @media (max-width: 480px) {
@@ -221,9 +227,9 @@
 <div class="owner hidden" id="owner">
   <div class="ownerbox">
     <h1>きょうの品を並べる</h1>
-    <p>招き猫に話しかけるみたいに書いでけれ。キーボードのマイクでしゃべってもいいよ。<br>例：「ミニトマト5袋150円、大葉が4束で100円、きゅうりも少し」</p>
+    <p>招き猫に話しかけるみたいに書いでけれ。🎤のボタンでしゃべってもいいよ。<br>例：「ミニトマト5袋150円、大葉が4束で100円、きゅうりも少し」</p>
     <textarea id="words" rows="3" placeholder="今日はなにを並べる？"></textarea>
-    <div class="row"><button class="main" id="ask">招き猫に頼む</button></div>
+    <div class="row"><button class="sub" id="mic" hidden>🎤 話して伝える</button><button class="main" id="ask">招き猫に頼む</button></div>
     <div class="neko-q" id="nekoq"></div>
     <div id="fuda"></div>
     <div class="colors"><span>お店の色：</span>
@@ -251,9 +257,9 @@
     <details id="notebox"><summary>店番ノート（招き猫の記憶）</summary><pre id="notetext"></pre></details>
     <div class="row" id="afterbtns" style="display:none">
       <button class="sub" id="sharenippo">LINEなどに送る</button>
-      <button class="sub" id="exportbtn">記録を書き出す</button>
       <button class="main" id="newday">また明日（記録をしまう）</button>
     </div>
+    <p class="tiny"><button id="exportbtn">記録をファイルに書き出す（機種変更の時など）</button></p>
   </div>
 </div>
 
@@ -434,9 +440,9 @@ function render() {
     const n = cart[it.id] || 0;
     const card = document.createElement("div");
     card.className = "item" + (n ? " picked" : "") + (it.stock === 0 ? " soldout" : "");
-    card.innerHTML = `<button class="add"><span class="count">${n}</span><div class="emoji">${it.emoji}</div>
+    card.innerHTML = `<button class="add"><span class="count">${n}${it.unit} えらんだ</span><div class="emoji">${it.emoji}</div>
       <div class="name">${it.name}</div><div class="price">${it.price}円</div>
-      <div class="left">${it.stock === 0 ? "売り切れ" : `のこり ${it.stock - n}${it.unit}`}</div></button>
+      <div class="left">${it.stock === 0 ? "売り切れ" : `棚にのこり ${it.stock}${it.unit}`}</div></button>
       <button class="minus" aria-label="${it.name}をひとつへらす">−</button>`;
     card.querySelector(".add").onclick = () => pick(it);
     card.querySelector(".minus").onclick = () => unpick(it);
@@ -645,6 +651,26 @@ document.getElementById("ownerok").onclick = () => {
   owner.classList.add("hidden");
   say("品札、並べだよ。<br>開店したら、ちゃんと店番するがらな。", false);
 };
+
+// ---------- 🎤 話して伝える（iPad の音声認識。使えない端末ではボタンを出さない） ----------
+const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (Rec) {
+  const mic = document.getElementById("mic");
+  mic.hidden = false;
+  let rec = null;
+  mic.onclick = () => {
+    if (rec) { rec.stop(); return; }
+    rec = new Rec();
+    rec.lang = "ja-JP"; rec.interimResults = true; rec.continuous = false;
+    const words = document.getElementById("words");
+    const before = words.value ? words.value + "、" : "";
+    rec.onresult = (e) => { words.value = before + [...e.results].map(r => r[0].transcript).join(""); };
+    rec.onend = () => { rec = null; mic.classList.remove("listening"); mic.textContent = "🎤 話して伝える"; };
+    rec.onerror = rec.onend;
+    mic.classList.add("listening"); mic.textContent = "🎤 聞いでるよ…（押すと止まる）";
+    rec.start();
+  };
+}
 
 // ---------- お店の色 ----------
 function setTheme(t) {
