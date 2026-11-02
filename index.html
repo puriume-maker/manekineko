@@ -84,6 +84,8 @@
   .modes { display: grid; gap: 8px; }
   .openmodes { max-width: 560px; text-align: left; }
   .openhint:empty { display: none; }
+  .codebox { color: var(--sub); display: flex; gap: 10px; align-items: center; }
+  .codebox input { font: inherit; font-size: 18px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--line); background: #fff; color: #3b3a36; width: 220px; -webkit-user-select: text; user-select: text; }
   .openhint { color: #b4542e !important; }
   .modes label { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
   .modes small { display: block; color: var(--sub); }
@@ -281,6 +283,7 @@
     <label><input type="radio" name="mode2" value="miseban"><span><b>店番モード</b><small>お客さんは何もさわらない。品は入れでも入れねくてもいいよ</small></span></label>
     <label><input type="radio" name="mode2" value="reji"><span><b>レジモード</b><small>お客さんが品をタップして合計を出す（品を並べてから）</small></span></label>
   </div>
+  <label class="codebox">お店の合言葉 <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉"></label>
   <p class="openhint" id="openhint"></p>
   <button class="main" id="openbtn">開店する</button>
   <button class="sub" id="ownerbtn">きょうの品を並べる</button>
@@ -397,13 +400,26 @@ try {
 } catch (e) {}
 function saveItems() { try { localStorage.setItem("niwasaki_items", JSON.stringify(ITEMS)); } catch (e) {} }
 
+// ---------- 合言葉：知らない人にAPIを使われないように、店主さんの合言葉をつけて頼む ----------
+let shopCode = (() => { try { return localStorage.getItem("niwasaki_code") || ""; } catch (e) { return ""; } })();
+let codeRejected = false;
+async function apiFetch(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), "x-shop-code": shopCode } });
+  if (r.status === 403) {
+    codeRejected = true;
+    const h = document.getElementById("openhint");
+    if (h) h.textContent = "合言葉がちがうみたいだ。店主さんの合言葉を入れでけれ。";
+  }
+  return r;
+}
+
 // ---------- Claude（店番の頭）にたずねる。だめなら決まり文句 ----------
 const recentLines = [];
 async function askNeko(scene, extra = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 7000);
   try {
-    const r = await fetch("/api/aisatsu", {
+    const r = await apiFetch("/api/aisatsu", {
       method: "POST", signal: ctrl.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -456,7 +472,7 @@ function speakFallback(text) {
 }
 async function makeVoice(text) {
   try {
-    const r = await fetch("/api/koe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const r = await apiFetch("/api/koe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
     if (r.status !== 200) return null;
     return URL.createObjectURL(await r.blob());
   } catch (e) { return null; }
@@ -772,6 +788,12 @@ async function keepScreenOn() {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wakeLock) keepScreenOn(); });
 
 let shopOpen = false;
+document.getElementById("shopcode").value = shopCode;
+document.getElementById("shopcode").oninput = (e) => {
+  shopCode = e.target.value.trim(); codeRejected = false;
+  try { localStorage.setItem("niwasaki_code", shopCode); } catch (err) {}
+  updateOpenHint();
+};
 document.getElementById("openbtn").onclick = async () => {
   document.getElementById("open").classList.add("hidden");
   shopOpen = true;
@@ -834,7 +856,7 @@ document.getElementById("ask").onclick = async () => {
   const q = document.getElementById("nekoq");
   q.textContent = "ふむふむ……";
   try {
-    const r = await fetch("/api/shinafuda", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words }) });
+    const r = await apiFetch("/api/shinafuda", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words }) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error);
     draft = (j.items || []).map((it, i) => ({ id: "item" + Date.now() + i, ...it }));
@@ -945,7 +967,7 @@ document.getElementById("writenippo").onclick = async () => {
   const nippoEl = document.getElementById("nippo");
   nippoEl.textContent = "日報、書いでるがら、ちょっと待ってけれ……";
   try {
-    const r = await fetch("/api/nippo", {
+    const r = await apiFetch("/api/nippo", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify((() => {
         if (mode === "miseban") {
