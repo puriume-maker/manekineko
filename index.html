@@ -620,10 +620,15 @@ function listen() {
 async function answer(heard) {
   talkBusy = true; touch(); lastMotion = Date.now();
   catEl().classList.add("thinking");
-  bubble.innerHTML = `<small style="opacity:.6">「${esc(heard)}」</small><br>うーん……`;
+  // 考えている間の沈黙を埋める：先に作っておいたあいづちをすぐ鳴らす
+  const ks = ["aizuchi1", "aizuchi2", "aizuchi3"].filter(k => fixedVoice[k]);
+  const k = ks[Math.floor(Math.random() * ks.length)];
+  bubble.innerHTML = `<small style="opacity:.6">「${esc(heard)}」</small><br>${k ? FIXED[k] : "うーん……"}`;
+  if (k) playVoice(fixedVoice[k], FIXED[k]);
   const line = await askNeko("talk", { heard, mode });
   const text = line || "わりな、よぐ聞ごえねがった。もう一回しゃべってけれ。";
   const url = await makeVoice(plain(text));
+  if (!player.paused) await new Promise(r => player.addEventListener("ended", r, { once: true }));
   catEl().classList.remove("thinking");
   talkBusy = false;
   say(text, true, url); remember(text);
@@ -651,11 +656,14 @@ const FIXED = {
   yogu: "よぐ来たなぁ。ゆっくり見でってけれ。",
   arigato: "ありがとさん。おいしぐ食べでけれな。",
   bye: "ありがとさん。お代は箱さ入れでけれな。まだ来てけれ〜。",
+  aizuchi1: "んだなぁ、ちょっと待ってけれな。",
+  aizuchi2: "うんうん、ええとなぁ……",
+  aizuchi3: "ほうほう、なんだべなぁ……",
 };
 let visits = load("niwasaki_visits", 0);
 function newVisit() { visit = { active: true, tapped: false, called: false }; visits++; store("niwasaki_visits", visits); }
 const fixedVoice = {};
-async function prepareFixedVoices() { for (const k of ["yogu", "bye", "arigato", "matte", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
+async function prepareFixedVoices() { for (const k of ["yogu", "bye", "aizuchi1", "arigato", "aizuchi2", "matte", "aizuchi3", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
 setInterval(() => {
   if (!cameraOn || asleep || !visit.active) return;
   const now = Date.now();

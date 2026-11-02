@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const { scene = "greet", now, items = [], recent = [], cart = null, note = "", heard = "", mode = "miseban" } = req.body || {};
   const situation = {
     店番ノート: note || undefined, // これまでの日にわかったこと（記憶）
-    場面: { greet: "お客さんが近づいてきた", talk: "お客さんが話しかけてきたので答える（聞き取りの文字は間違っていることがある。意味がわからなければ、やさしく聞き返す）", thanks: "お客さんがお金を入れてくれた（金額や品名には触れず、どの買い物にも合うお礼にする）" }[scene] || scene,
+    場面: { greet: "お客さんが近づいてきた", talk: "お客さんが話しかけてきたので答える。30字以内の一文で短く（聞き取りの文字は間違っていることがある。意味がわからなければ、やさしく聞き返す）", thanks: "お客さんがお金を入れてくれた（金額や品名には触れず、どの買い物にも合うお礼にする）" }[scene] || scene,
     いまの時刻: now,
     きょうの品: items.map((it) => ({ 名前: it.name, 値段: it.price, 残り: `${it.stock}${it.unit}` })),
     お会計: cart,
