@@ -634,7 +634,7 @@ async function answer(heard) {
   say(text, true, url); remember(text);
 }
 // 猫がしゃべり終わったら、また耳をすます
-player.addEventListener("ended", () => setTimeout(listen, 400));
+player.addEventListener("ended", () => { lastMotion = Date.now(); setTimeout(listen, 400); });
 // 聞き取りが勝手に止まっていたら、お客さんがいる間はかけ直す
 setInterval(() => { if (!asleep && visit.active && !ear && !talkBusy && !needTapToTalk) listen(); }, 1500);
 // iPad がタッチなしの聞き取りを許さない時は、猫をなでるとお話しできる
@@ -666,6 +666,8 @@ const fixedVoice = {};
 async function prepareFixedVoices() { for (const k of ["yogu", "bye", "aizuchi1", "arigato", "aizuchi2", "matte", "aizuchi3", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
 setInterval(() => {
   if (!cameraOn || asleep || !visit.active) return;
+  // 会話中（考え中・しゃべり中・耳をすまし中）は「帰った」と判定しない
+  if (talkBusy || ear || !player.paused || (window.speechSynthesis && speechSynthesis.speaking)) return;
   const now = Date.now();
   if (now - lastMotion < LEAVE_AFTER || now - lastTap < LEAVE_AFTER) return;
   if (mode === "miseban") {
