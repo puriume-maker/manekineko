@@ -50,6 +50,10 @@
   @keyframes tilt { 50% { transform: rotate(-6deg); } }
   .cat.listening::after { content: "👂"; position: absolute; right: -6px; top: -6px; font-size: clamp(22px, 4vmin, 40px); animation: zzz 1.6s ease-in-out infinite; }
   .cat { position: relative; }
+  .thinkdots { color: var(--sub); }
+  .thinkdots i { font-style: normal; animation: dot 1.2s infinite; }
+  .thinkdots i:nth-child(2) { animation-delay: 0.2s; } .thinkdots i:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
   .cat.wave .paw { animation: wave 0.45s ease-in-out 4; }
   @keyframes wave { 50% { transform: translateY(-7px); } }
   .cat.hop svg { animation: hop 0.5s ease-out 2; }
@@ -620,11 +624,8 @@ function listen() {
 async function answer(heard) {
   talkBusy = true; touch(); lastMotion = Date.now();
   catEl().classList.add("thinking");
-  // 考えている間の沈黙を埋める：先に作っておいたあいづちをすぐ鳴らす
-  const ks = ["aizuchi1", "aizuchi2", "aizuchi3"].filter(k => fixedVoice[k]);
-  const k = ks[Math.floor(Math.random() * ks.length)];
-  bubble.innerHTML = `<small style="opacity:.6">「${esc(heard)}」</small><br>${k ? FIXED[k] : "うーん……"}`;
-  if (k) playVoice(fixedVoice[k], FIXED[k]);
+  // 考えている間はしゃべらず、首をかしげて「考え中」を見せる（えみ 11/2：相づちだと会話っぽくなる）
+  bubble.innerHTML = `<small style="opacity:.6">「${esc(heard)}」</small><br><span class="thinkdots">考え中<i>.</i><i>.</i><i>.</i></span>`;
   const line = await askNeko("talk", { heard, mode });
   const text = line || "わりな、よぐ聞ごえねがった。もう一回しゃべってけれ。";
   const url = await makeVoice(plain(text));
@@ -656,14 +657,11 @@ const FIXED = {
   yogu: "よぐ来たなぁ。ゆっくり見でってけれ。",
   arigato: "ありがとさん。おいしぐ食べでけれな。",
   bye: "ありがとさん。お代は箱さ入れでけれな。まだ来てけれ〜。",
-  aizuchi1: "んだなぁ、ちょっと待ってけれな。",
-  aizuchi2: "うんうん、ええとなぁ……",
-  aizuchi3: "ほうほう、なんだべなぁ……",
 };
 let visits = load("niwasaki_visits", 0);
 function newVisit() { visit = { active: true, tapped: false, called: false }; visits++; store("niwasaki_visits", visits); }
 const fixedVoice = {};
-async function prepareFixedVoices() { for (const k of ["yogu", "bye", "aizuchi1", "arigato", "aizuchi2", "matte", "aizuchi3", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
+async function prepareFixedVoices() { for (const k of ["yogu", "bye", "arigato", "matte", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
 setInterval(() => {
   if (!cameraOn || asleep || !visit.active) return;
   // 会話中（考え中・しゃべり中・耳をすまし中）は「帰った」と判定しない
