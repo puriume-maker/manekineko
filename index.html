@@ -523,7 +523,11 @@ document.getElementById("ask").onclick = async () => {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error);
     draft = (j.items || []).map((it, i) => ({ id: "item" + Date.now() + i, ...it }));
-    q.textContent = j.question || (draft.length ? "こんな札でどうやろ？ 数字だけ見たってな。" : "ごめんな、品が見つからんかった。");
+    const missing = draft.filter(it => it.price == null || it.stock == null).map(it =>
+      `${it.name}の${it.price == null && it.stock == null ? "値段と数" : it.price == null ? "値段" : "数"}`);
+    q.textContent = j.question
+      || (missing.length ? `${missing.join("、")}は、なんぼにする？ オレンジのとこに入れてな。` : "")
+      || (draft.length ? "こんな札でどうやろ？ 数字だけ見たってな。" : "ごめんな、品が見つからんかった。");
     renderDraft();
   } catch (e) {
     q.textContent = "ごめんな、いま頭がつながらんみたい。ちょっと待ってもう一回押してな。";
