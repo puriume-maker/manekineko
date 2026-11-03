@@ -146,6 +146,7 @@ function showCodeNeeded() {
 }
 
 let codeTimer;
+let codeAccepted = false;
 $("shopcode").oninput = (e) => {
   shopCode = e.target.value.trim();
   try { localStorage.setItem("niwasaki_code", shopCode); } catch (err) {}
@@ -166,6 +167,7 @@ async function api(query, opts = {}) {
     throw new Error("code");
   }
   if (!r.ok) throw new Error("http " + r.status);
+  if (!codeAccepted) { codeAccepted = true; $("codefold").open = false; } // 通ったら合言葉欄はしまう
   return r.json();
 }
 

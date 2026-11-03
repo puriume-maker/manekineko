@@ -88,7 +88,7 @@ function readTalk(events) {
       busy = true;
       paused = failed = false;
       const texts = e.content.filter((b) => b.type === "text").map((b) => b.text);
-      if (texts.some((t) => t.startsWith(BACKSTAGE_MARK))) continue;
+      if (texts.some((t) => t.startsWith(BACKSTAGE_MARK) || t.startsWith("【朝の定時起動"))) continue; // 後ろは印を付ける前の朝の合図
       ownerSpoke = true;
       messages.push({
         id: e.id,
