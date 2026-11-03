@@ -3,4 +3,3 @@
 .env.*
 .vercel
 node_modules/
-agent/ids.json
