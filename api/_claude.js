@@ -5,6 +5,6 @@ export const client = new Anthropic();
 
 export function shopOK(req) {
   const code = process.env.SHOP_CODE;
-  if (!code) return true; // 未設定なら試作として誰でも
+  if (!code) return false; // 未設定なら閉じる（費用がかかるため）
   return req.headers["x-shop-code"] === code;
 }
