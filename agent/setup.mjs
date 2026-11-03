@@ -1,4 +1,4 @@
-// 助手の本体（環境・エージェント・記憶の棚・朝の定時起動）を一度だけ作る。
+// 助手の本体（環境・エージェント・記憶の棚・止めてある定時起動）を一度だけ作る。
 // 作ったものの番号は agent/ids.json に保存し、二回目以降はエージェントの更新だけをする。
 // 実行: ANTHROPIC_API_KEY を渡して node agent/setup.mjs
 import fs from "node:fs";
@@ -82,6 +82,10 @@ if (ids.deployment) {
   const deployment = await client.beta.deployments.create(deploymentConfig);
   ids.deployment = deployment.id;
 }
+
+// 朝は家のカメラ係（home/asa.mjs）が写真つきで起こす。二重に起きないよう、定時起動は止めておく
+const deployment = await client.beta.deployments.retrieve(ids.deployment);
+if (!deployment.paused_reason) await client.beta.deployments.pause(ids.deployment);
 
 fs.writeFileSync(idsPath, JSON.stringify(ids, null, 2) + "\n");
 console.log(JSON.stringify(ids, null, 2));

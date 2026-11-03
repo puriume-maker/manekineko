@@ -2,6 +2,8 @@
 //   GET  /api/techo?do=talk[&session=sesn_…]  今の会話（なければ新しく始める）
 //   POST /api/techo?do=say   {text, photo}    発言を送る（photo は JPEG の base64）
 //   GET  /api/techo?do=shelf                  記憶の棚の中身
+//   GET  /api/techo?do=mornings               朝の一覧（最近7日、写真の番号とひとこと）
+//   GET  /api/techo?do=photo&file=file_…      朝の写真（朝の一覧に載っているものだけ）
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import fs from "node:fs";
 import { toFile } from "@anthropic-ai/sdk";
@@ -12,6 +14,8 @@ const PHOTO_MARK = "【写真】"; // 写真が届いたことを助手に伝え
 const BACKSTAGE_MARK = "【裏方】"; // 朝の起動など、店主の発言ではない合図。画面に出さない
 const MAX_PHOTO_BASE64 = 4_200_000; // Vercel の本文上限 4.5MB の内側
 const MAX_TEXT = 8000;
+const MAX_MORNINGS = 7;
+const MORNING_SCAN = 200; // 朝を探して見る会話の数の上限
 
 let idsFile; // agent/ids.json は一度だけ読む
 function ids() {
@@ -174,6 +178,51 @@ async function shelf(req, res) {
   return res.status(200).json({ notes });
 }
 
+// 朝の会話を新しい順に集める。同じ日に複数あれば（やり直し）新しい方だけ
+async function morningSessions() {
+  const found = new Map();
+  let seen = 0;
+  for await (const s of client.beta.sessions.list({ agent_id: ids().agent, order: "desc", limit: 50 })) {
+    if (s.metadata?.kind === "asa" && s.metadata.date && !found.has(s.metadata.date)) found.set(s.metadata.date, s);
+    if (found.size >= MAX_MORNINGS || ++seen >= MORNING_SCAN) break;
+  }
+  return [...found.values()];
+}
+
+async function firstWord(sessionId) {
+  const page = await client.beta.sessions.events.list(sessionId, { types: ["agent.message"], limit: 5 });
+  for (const e of page.data) {
+    const text = e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+    if (text) return text;
+  }
+  return null;
+}
+
+async function mornings(req, res) {
+  const sessions = await morningSessions();
+  const list = await Promise.all(sessions.map(async (s) => ({
+    date: s.metadata.date,
+    fileId: s.metadata.photo_file_id || null,
+    word: await firstWord(s.id),
+    looking: s.status === "running" || s.status === "rescheduling",
+  })));
+  return res.status(200).json({ mornings: list });
+}
+
+// 上げたファイルは Files API から取り出せない（生成物だけが取り出せる決まり）ので、
+// 朝の合図に添えた写真を、その会話の履歴から読む。朝の一覧にある番号しか受けつけない。
+async function photo(req, res) {
+  const file = String(req.query.file || "");
+  const session = (await morningSessions()).find((s) => s.metadata.photo_file_id && s.metadata.photo_file_id === file);
+  if (!session) return res.status(404).json({ error: "not a morning photo" });
+  const page = await client.beta.sessions.events.list(session.id, { types: ["user.message"], limit: 1 });
+  const image = page.data[0]?.content.find((b) => b.type === "image" && b.source?.type === "base64");
+  if (!image) return res.status(404).json({ error: "no photo" });
+  res.setHeader("content-type", image.source.media_type);
+  res.setHeader("cache-control", "private, max-age=604800, immutable");
+  return res.status(200).end(Buffer.from(image.source.data, "base64"));
+}
+
 export default async function handler(req, res) {
   if (!process.env.SHOP_CODE || !shopOK(req)) return res.status(403).json({ error: "shop code" });
   const action = req.query.do;
@@ -181,6 +230,8 @@ export default async function handler(req, res) {
     if (action === "talk" && req.method === "GET") return await talk(req, res);
     if (action === "say" && req.method === "POST") return await say(req, res);
     if (action === "shelf" && req.method === "GET") return await shelf(req, res);
+    if (action === "mornings" && req.method === "GET") return await mornings(req, res);
+    if (action === "photo" && req.method === "GET") return await photo(req, res);
     return res.status(404).json({ error: "unknown" });
   } catch (e) {
     console.error("techo", action, e.status, e.message); // 鍵は載らない（状態コードと文面だけ）

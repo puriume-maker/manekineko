@@ -31,10 +31,22 @@
   header { padding: 18px 16px 6px; }
   h1 { margin: 0; font-size: 24px; letter-spacing: 0.08em; font-weight: 600; }
 
-  /* 今朝のひとこと */
-  .morning { margin: 8px 16px 4px; padding: 14px 16px; background: var(--sun); border-radius: 16px; }
-  .morning h2 { margin: 0 0 2px; font-size: 15px; font-weight: 600; color: var(--sub); }
-  .morning p { margin: 0; white-space: pre-wrap; }
+  /* 今朝の福ちゃん */
+  .asa { margin: 8px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+  .asaphoto { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--line); }
+  .asabody { padding: 14px 18px 16px; }
+  .asa h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; color: var(--leaf); }
+  .asaword { margin: 0; font-size: 20px; line-height: 1.75; white-space: pre-wrap; }
+  .asadate { display: block; margin-top: 8px; font-size: 14px; color: var(--sub); }
+
+  /* 過去の朝 */
+  .days { display: flex; gap: 8px; padding: 10px 16px 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .day { flex: none; width: 76px; padding: 0; border: 0; background: none; font: inherit; color: var(--sub); cursor: pointer; text-align: center; }
+  .day img, .day .noimg { display: block; width: 76px; height: 76px; object-fit: cover; border-radius: 12px; background: var(--line); border: 3px solid transparent; }
+  .day .noimg { display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .day span.when { display: block; font-size: 14px; line-height: 1.6; }
+  .day[aria-current="true"] img, .day[aria-current="true"] .noimg { border-color: var(--leaf); }
+  .day[aria-current="true"] { color: var(--leaf); font-weight: 600; }
 
   /* 折りたたみ（記憶の棚・合言葉） */
   details.fold { margin: 8px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
@@ -49,15 +61,16 @@
   .needcode { color: var(--warn); font-size: 16px; margin: 0; }
 
   /* 会話 */
-  #talk { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-  .msg { max-width: 86%; padding: 11px 15px; border-radius: 18px; }
+  .talkhead { margin: 24px 16px 0; font-size: 16px; font-weight: 600; color: var(--sub); }
+  #talk { padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 88%; padding: 11px 15px; border-radius: 18px; }
   .msg.helper { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
   .msg.owner { align-self: flex-end; background: var(--leaf-soft); border-bottom-right-radius: 6px; }
   .msg .body { white-space: pre-wrap; }
   .msg time { display: block; font-size: 13px; color: var(--sub); margin-top: 3px; }
   .msg img { display: block; width: 100%; max-width: 280px; border-radius: 12px; margin-bottom: 6px; }
   .photochip { color: var(--sub); font-size: 16px; }
-  .hello, .notice { align-self: center; text-align: center; color: var(--sub); font-size: 16px; padding: 8px 12px; }
+  .hello, .notice { align-self: stretch; color: var(--sub); font-size: 16px; padding: 2px 0; }
   .notice { color: var(--warn); }
   .thinking { align-self: flex-start; color: var(--sub); padding: 4px 6px; }
   .thinking i { font-style: normal; animation: dot 1.4s infinite; }
@@ -67,10 +80,8 @@
   @media (prefers-reduced-motion: reduce) { .thinking i { animation: none; } }
 
   /* 入力 */
-  form {
-    position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--line);
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  }
+  form { padding: 0 16px 8px; }
+  #bottom { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
   .preview { position: relative; display: inline-block; margin-bottom: 8px; }
   .preview img { display: block; height: 96px; border-radius: 10px; }
   .preview button { position: absolute; top: -8px; right: -8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
@@ -92,24 +103,20 @@
 <main>
   <header><h1>お店の手帳</h1></header>
 
-  <section class="morning" id="morning" hidden>
-    <h2>今朝のひとこと</h2>
-    <p id="morningtext"></p>
+  <div id="codeplace"></div>
+
+  <section class="asa" id="asa" aria-live="polite" hidden>
+    <img class="asaphoto" id="asaphoto" alt="" hidden>
+    <div class="asabody">
+      <h2 id="asatitle">今朝の福ちゃん</h2>
+      <p class="asaword" id="asaword"></p>
+      <time class="asadate" id="asadate" hidden></time>
+    </div>
   </section>
 
-  <details class="fold" id="shelf">
-    <summary>記憶の棚を見る</summary>
-    <div class="foldbody" id="shelfbody"><p class="quiet">開くと読み込みます。</p></div>
-  </details>
+  <nav class="days" id="days" aria-label="これまでの朝" hidden></nav>
 
-  <details class="fold" id="codefold">
-    <summary>お店の合言葉</summary>
-    <div class="foldbody code">
-      <p class="needcode" id="needcode" hidden>合言葉を入れると、助手と話せます。</p>
-      <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
-    </div>
-  </details>
-
+  <h2 class="talkhead">話したいことがあれば</h2>
   <section id="talk" aria-live="polite"></section>
 
   <form id="form">
@@ -117,15 +124,30 @@
       <img id="previewimg" alt="送る写真">
       <button type="button" id="previewoff" aria-label="写真をやめる">×</button>
     </div>
-    <div class="tools">
+    <div class="row">
+      <textarea id="text" rows="1" placeholder="福ちゃんに話す" aria-label="福ちゃんに話す"></textarea>
+      <button class="send" id="send" type="submit">送る</button>
+    </div>
+    <div class="tools" style="margin: 8px 0 0">
       <label class="pick">写真を撮る<input id="camera" type="file" accept="image/*" capture="environment"></label>
       <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*"></label>
     </div>
-    <div class="row">
-      <textarea id="text" rows="1" placeholder="庭のこと、なんでも" aria-label="助手に話す"></textarea>
-      <button class="send" id="send" type="submit">送る</button>
-    </div>
   </form>
+
+  <div id="bottom">
+    <details class="fold" id="shelf">
+      <summary>福ちゃんのノート</summary>
+      <div class="foldbody" id="shelfbody"><p class="quiet">開くと読み込みます。</p></div>
+    </details>
+
+    <details class="fold" id="codefold">
+      <summary>お店の合言葉</summary>
+      <div class="foldbody code">
+        <p class="needcode" id="needcode" hidden>合言葉を入れると、福ちゃんの手帳が開きます。</p>
+        <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
+      </div>
+    </details>
+  </div>
 </main>
 
 <script>
@@ -140,7 +162,9 @@ let shopCode = (() => { try { return localStorage.getItem("niwasaki_code") || ""
 $("shopcode").value = shopCode;
 if (!shopCode) showCodeNeeded();
 
+// 合言葉が要る時だけ、欄をいちばん上に出す。通ったら下にしまう
 function showCodeNeeded() {
+  $("codeplace").append($("codefold"));
   $("codefold").open = true;
   $("needcode").hidden = false;
 }
@@ -155,20 +179,114 @@ $("shopcode").oninput = (e) => {
   codeTimer = setTimeout(() => {
     if (!shopCode) return;
     if ($("shelf").open) loadShelf();
+    loadMornings();
     refresh();
   }, 500);
 };
 
-async function api(query, opts = {}) {
+async function request(query, opts = {}) {
   const r = await fetch(`/api/techo?${query}`, { ...opts, headers: { ...(opts.headers || {}), "x-shop-code": shopCode } });
   if (r.status === 403) {
+    $("asa").hidden = true;
     $("needcode").textContent = "合言葉がちがうようです。店主さんの合言葉を入れてください。";
     showCodeNeeded();
     throw new Error("code");
   }
   if (!r.ok) throw new Error("http " + r.status);
-  if (!codeAccepted) { codeAccepted = true; $("codefold").open = false; } // 通ったら合言葉欄はしまう
-  return r.json();
+  if (!codeAccepted) { codeAccepted = true; $("codefold").open = false; $("bottom").append($("codefold")); } // 通ったら合言葉欄はしまう
+  return r;
+}
+async function api(query, opts) { return (await request(query, opts)).json(); }
+
+// ---------- 今朝の福ちゃんと、過去の朝 ----------
+let mornings = [];
+let chosen = null;  // 見ている朝の日付
+let morningTimer = null;
+const photoUrls = new Map(); // 写真の番号 → 画面用のURL（<img> はヘッダを送れないので fetch して持つ）
+
+const todayText = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+function dayLabel(date) {
+  const [, m, d] = date.split("-").map(Number);
+  return `${m}月${d}日`;
+}
+
+function photoUrl(fileId) {
+  if (!photoUrls.has(fileId)) {
+    photoUrls.set(fileId, request(`do=photo&file=${encodeURIComponent(fileId)}`)
+      .then((r) => r.blob())
+      .then((b) => URL.createObjectURL(b))
+      .catch((e) => { photoUrls.delete(fileId); throw e; }));
+  }
+  return photoUrls.get(fileId);
+}
+
+function drawCard() {
+  const m = mornings.find((x) => x.date === chosen);
+  const img = $("asaphoto");
+  const word = $("asaword");
+  $("asadate").hidden = !m;
+  img.hidden = true;
+  if (!m) {
+    $("asatitle").textContent = "今朝の福ちゃん";
+    word.textContent = "福ちゃんはまだ庭を見に行っていません。朝になると、ここに庭の写真とひとことが届きます。";
+    return;
+  }
+  const isToday = m.date === todayText();
+  $("asatitle").textContent = isToday ? "今朝の福ちゃん" : `${dayLabel(m.date)}の福ちゃん`;
+  $("asadate").textContent = `${dayLabel(m.date)}の朝`;
+  word.textContent = m.word || (m.looking ? "福ちゃんが庭を見ているところです。" : "この朝は、ひとことがありません。");
+  if (m.fileId) {
+    img.alt = `${dayLabel(m.date)}の朝の庭の写真`;
+    photoUrl(m.fileId).then((url) => {
+      if (chosen !== m.date) return;
+      img.src = url;
+      img.hidden = false;
+    }).catch(() => {});
+  }
+}
+
+function drawDays() {
+  const box = $("days");
+  box.hidden = mornings.length < 2;
+  box.replaceChildren();
+  for (const m of mornings) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "day";
+    b.setAttribute("aria-current", String(m.date === chosen));
+    const when = document.createElement("span");
+    when.className = "when";
+    when.textContent = dayLabel(m.date);
+    if (m.fileId) {
+      const img = document.createElement("img");
+      img.alt = `${dayLabel(m.date)}の朝を見る`;
+      b.append(img, when);
+      photoUrl(m.fileId).then((url) => { img.src = url; }).catch(() => {});
+    } else {
+      const none = document.createElement("span");
+      none.className = "noimg";
+      none.textContent = "写真なし";
+      b.append(none, when);
+    }
+    b.onclick = () => { chosen = m.date; drawCard(); drawDays(); };
+    box.append(b);
+  }
+}
+
+async function loadMornings() {
+  clearTimeout(morningTimer);
+  if (!shopCode) return;
+  try {
+    const data = await api("do=mornings");
+    mornings = data.mornings;
+    $("asa").hidden = false;
+    if (!mornings.some((m) => m.date === chosen)) chosen = mornings[0]?.date ?? null;
+    drawCard();
+    drawDays();
+    if (mornings.some((m) => m.looking)) morningTimer = setTimeout(loadMornings, 5000);
+  } catch (e) {
+    if (e.message !== "code") { $("asa").hidden = false; $("asaword").textContent = "つながりにくいようです。少し置いて開き直してみてください。"; }
+  }
 }
 
 // ---------- 会話を描く ----------
@@ -178,6 +296,7 @@ let waitingFor = null;      // 送ったばかりで、まだ会話に現れて�
 let waitingText = null;     // 同じ発言の、画面に先に出しておく内容
 let waitStart = 0;
 let notice = "";
+let followTalk = false;
 const localPhotos = new Map(); // このページで送った写真（画面に出すだけ。開き直すと「写真」の印になる）
 
 function fmtTime(at) {
@@ -229,11 +348,10 @@ function line(cls, text) {
 
 function draw() {
   const talk = $("talk");
-  const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200;
   talk.replaceChildren();
   const list = [...shown.messages];
   if (waitingText) list.push(waitingText);
-  if (!list.length && !shown.busy) talk.append(line("hello", "庭のこと、今日あったこと、話してみてください。写真でも大丈夫です。"));
+  if (!list.length && !shown.busy) talk.append(line("hello", "話しかけなくても大丈夫です。聞きたいことや、見せたい写真があればどうぞ。"));
   for (const m of list) talk.append(bubble(m));
   if (isThinking()) {
     const t = document.createElement("div");
@@ -245,15 +363,13 @@ function draw() {
   if (shown.failed) talk.append(line("notice", "助手の調子が悪いようです。少し待って、もう一度話しかけてください。"));
   if (notice) talk.append(line("notice", notice));
   $("send").disabled = isThinking();
-  if (nearBottom) window.scrollTo(0, document.documentElement.scrollHeight);
+  if (followTalk) {
+    $("form").scrollIntoView({ block: "end" }); // 話している間だけ、会話の端についていく
+    if (!isThinking()) followTalk = false;
+  }
 }
 
 function isThinking() { return Boolean(waitingFor) || shown.busy; }
-
-function drawMorning(m) {
-  $("morning").hidden = !m;
-  if (m) $("morningtext").textContent = m.text;
-}
 
 // ---------- 会話を取りに行く ----------
 let pollTimer = null;
@@ -275,7 +391,6 @@ async function refresh(useSession) {
       waitingText = null;
     }
     if (notice && !waitingFor) notice = "";
-    drawMorning(data.morning);
     draw();
   } catch (e) {
     if (serial !== pollSerial) return;
@@ -355,7 +470,8 @@ $("form").onsubmit = async (e) => {
   growText();
   clearPhoto();
   draw();
-  window.scrollTo(0, document.documentElement.scrollHeight);
+  followTalk = true;
+  draw();
 
   try {
     const sent = await api("do=say", {
@@ -411,12 +527,13 @@ async function loadShelf() {
 $("shelf").ontoggle = () => { if ($("shelf").open) loadShelf(); };
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !isThinking()) refresh();
+  if (document.visibilityState === "visible" && !isThinking()) { refresh(); loadMornings(); }
 });
 
 draw();
 waitStart = Date.now();
-refresh().then(() => window.scrollTo(0, document.documentElement.scrollHeight));
+loadMornings();
+refresh();
 </script>
 </body>
 </html>
