@@ -15,7 +15,7 @@ const client = new Anthropic();
 const ids = fs.existsSync(idsPath) ? JSON.parse(fs.readFileSync(idsPath, "utf8")) : {};
 
 const agentConfig = {
-  name: "庭の相棒",
+  name: "福ちゃん",
   model: "claude-opus-5-5",
   system,
   tools: [
