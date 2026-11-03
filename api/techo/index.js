@@ -4,6 +4,8 @@
 //   GET  /api/techo?do=shelf                  記憶の棚の中身
 //   GET  /api/techo?do=mornings               朝の一覧（最近7日、写真の番号とひとこと）
 //   GET  /api/techo?do=photo&file=file_…      朝の写真（朝の一覧に載っているものだけ）
+//   GET  /api/techo?do=mise                   店先の猫が読む札とセリフ（棚の mise.json を検証して返す）
+//   POST /api/techo?do=report {date, count}   猫が数えた立ち止まりの人数を棚に残す（会話は起こさない）
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import fs from "node:fs";
 import { toFile } from "@anthropic-ai/sdk";
@@ -16,6 +18,10 @@ const MAX_PHOTO_BASE64 = 4_200_000; // Vercel の本文上限 4.5MB の内側
 const MAX_TEXT = 8000;
 const MAX_MORNINGS = 7;
 const MORNING_SCAN = 200; // 朝を探して見る会話の数の上限
+const MISE_PATH = "/mise.json";
+const KIROKU_PATH = "/mise_kiroku.md";
+const KIROKU_HEAD = "# 猫からの記録（立ち止まった人数。カメラの動きからの目安）";
+const EMPTY_MISE = { date: null, items: [], lines: { greet: [], bye: [] } };
 
 let idsFile; // agent/ids.json は一度だけ読む
 function ids() {
@@ -49,6 +55,8 @@ function startSession({ agent, environment, store }) {
 }
 
 async function currentSession(c) {
+  // 会話は作った時の助手の指示のまま動くので、助手を更新したら新しい会話へ移る（覚えたことは棚に残っている）
+  const latest = (await client.beta.agents.retrieve(c.agent)).version;
   for await (const s of client.beta.sessions.list({
     agent_id: c.agent,
     memory_store_id: c.store, // 棚がつながっていない試しの会話は拾わない
@@ -56,7 +64,8 @@ async function currentSession(c) {
     order: "desc",
     limit: 10,
   })) {
-    if (s.metadata?.kind !== "yume") return s; // 夢は店主と話す場所ではない
+    if (s.metadata?.kind === "yume") continue; // 夢は店主と話す場所ではない
+    return s.agent?.version === latest ? s : startSession(c);
   }
   return startSession(c);
 }
@@ -225,6 +234,81 @@ async function photo(req, res) {
   return res.status(200).end(Buffer.from(image.source.data, "base64"));
 }
 
+async function findNote(store, notePath) {
+  for await (const m of client.beta.memoryStores.memories.list(store)) {
+    if (m.type === "memory" && m.path === notePath) return m;
+  }
+  return null;
+}
+
+const shortText = (v, max) => typeof v === "string" && v.trim() && v.length <= max && !/[\u0000-\u001f<>]/.test(v);
+const whole = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
+const realDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00+09:00`));
+
+// 棚の mise.json は福ちゃんの手書きなので、形が合う時だけ猫に渡す。壊れていれば空
+function checkMise(text) {
+  let d;
+  try { d = JSON.parse(text); } catch { return EMPTY_MISE; }
+  if (!d || !realDate(d.date) || !Array.isArray(d.items) || !d.lines) return EMPTY_MISE;
+  const lines = (a) => (Array.isArray(a) ? a.filter((t) => shortText(t, 60)).slice(0, 5) : []);
+  const items = [];
+  for (const it of d.items.slice(0, 12)) {
+    if (!it || !shortText(it.name, 40) || !whole(it.price, 1_000_000)) return EMPTY_MISE;
+    const item = { name: it.name, price: it.price };
+    if (it.left !== undefined && it.left !== null) {
+      if (!whole(it.left, 100_000)) return EMPTY_MISE;
+      item.left = it.left;
+    }
+    items.push(item);
+  }
+  return { date: d.date, items, lines: { greet: lines(d.lines.greet), bye: lines(d.lines.bye) } };
+}
+
+async function mise(req, res) {
+  const store = ids().store;
+  const note = await findNote(store, MISE_PATH);
+  if (!note) return res.status(200).json(EMPTY_MISE);
+  const full = await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
+  return res.status(200).json(checkMise(full.content ?? ""));
+}
+
+// 文字は受け取らない：棚に書くのは検証した日付と数だけ。同じ日は一行にまとめる（数は多い方を残す）
+async function report(req, res) {
+  const { date, count } = req.body || {};
+  if (!realDate(date) || !whole(count, 100_000)) return res.status(400).json({ error: "bad report" });
+  if (Math.abs(Date.parse(`${date}T12:00:00+09:00`) - Date.now()) > 3 * 86_400_000) return res.status(400).json({ error: "bad date" });
+
+  const store = ids().store;
+  const lineFor = (n) => `- ${date} 立ち止まった人：${n}人`;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const found = await findNote(store, KIROKU_PATH);
+      if (!found) {
+        await client.beta.memoryStores.memories.create(store, { path: KIROKU_PATH, content: `${KIROKU_HEAD}\n${lineFor(count)}\n` });
+        return res.status(200).json({ ok: true });
+      }
+      const note = await client.beta.memoryStores.memories.retrieve(found.id, { memory_store_id: store });
+      const rows = (note.content ?? "").split("\n");
+      const at = rows.findIndex((r) => r.startsWith(`- ${date} `));
+      if (at >= 0) {
+        const before = Number(rows[at].match(/：(\d+)人/)?.[1] ?? 0);
+        rows[at] = lineFor(Math.max(before, count));
+      } else {
+        while (rows.length && !rows.at(-1)) rows.pop();
+        rows.push(lineFor(count), "");
+      }
+      await client.beta.memoryStores.memories.update(found.id, {
+        memory_store_id: store,
+        content: rows.join("\n"),
+        precondition: { type: "content_sha256", content_sha256: note.content_sha256 },
+      });
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      if (e.status !== 409 || attempt >= 1) throw e; // 福ちゃんと書くのが重なった時だけ、一度読み直す
+    }
+  }
+}
+
 export default async function handler(req, res) {
   if (!process.env.SHOP_CODE || !shopOK(req)) return res.status(403).json({ error: "shop code" });
   const action = req.query.do;
@@ -234,6 +318,8 @@ export default async function handler(req, res) {
     if (action === "shelf" && req.method === "GET") return await shelf(req, res);
     if (action === "mornings" && req.method === "GET") return await mornings(req, res);
     if (action === "photo" && req.method === "GET") return await photo(req, res);
+    if (action === "mise" && req.method === "GET") return await mise(req, res);
+    if (action === "report" && req.method === "POST") return await report(req, res);
     return res.status(404).json({ error: "unknown" });
   } catch (e) {
     console.error("techo", action, e.status, e.message); // 鍵は載らない（状態コードと文面だけ）

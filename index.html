@@ -10,12 +10,12 @@
     --bg: #f6f1e7;
     --card: #fffdf8;
     --ink: #3b3a36;
-    --sub: #8a8578;
-    --mint: #8fd3c1;
-    --mint-deep: #4fa894;
+    --sub: #746f63;
+    --mint-deep: #2f7a68;
     --line: #e6dfd0;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
@@ -23,18 +23,36 @@
     -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
   }
   main {
-    max-width: 1100px; margin: 0 auto; padding: clamp(16px, 2.5vw, 32px);
-    height: 100vh; height: 100dvh; display: flex; flex-direction: column;
+    max-width: 1200px; margin: 0 auto; padding: clamp(16px, 2.5vw, 32px);
+    min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; gap: clamp(10px, 2vh, 20px);
   }
 
-  /* 店先 */
-  .shop {
-    display: flex; align-items: flex-end; gap: 16px;
-    background: var(--card); border: 2px solid var(--line); border-radius: 20px; padding: 16px;
+  /* 店先：猫が主役、札は読むだけ */
+  .shop { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(14px, 3vh, 32px); }
+  .side { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: clamp(14px, 2.5vh, 28px); }
+  @media (orientation: landscape) and (min-width: 800px) {
+    .shop { flex-direction: row; gap: clamp(24px, 4vw, 56px); }
+    .side { flex: 1; }
+    .shop > .cat { width: clamp(280px, 62vmin, 560px); }
   }
-  .cat { width: clamp(110px, 22vw, 250px); flex-shrink: 0; }
-  .cat svg { width: 100%; height: auto; display: block; }
+  .bubble {
+    position: relative; background: #fff; border: 2px solid var(--ink); border-radius: 18px;
+    padding: clamp(14px, 2vw, 24px) clamp(16px, 2.4vw, 28px); text-align: center;
+    font-size: clamp(22px, 3.6vmin, 38px); line-height: 1.6; text-wrap: balance;
+  }
+  .fuda { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 14px; }
+  .fuda div {
+    background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 10px 18px; text-align: center;
+    font-size: clamp(19px, 3vmin, 30px); line-height: 1.4;
+  }
+  .fuda b { display: block; font-size: 1.15em; color: var(--mint-deep); }
+  .fuda small { display: block; font-size: 0.7em; color: var(--sub); }
+  .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--sub); font-size: clamp(13px, 1.6vmin, 16px); line-height: 1.5; }
+  .foot button { flex: none; min-height: 44px; font: inherit; background: none; border: 0; color: var(--sub); text-decoration: underline; cursor: pointer; }
+
   /* 猫の動き：置物の招き猫がそっと動くくらいの、やさしい動き */
+  .cat { position: relative; width: clamp(200px, 46vmin, 440px); flex-shrink: 0; }
+  .cat svg { width: 100%; height: auto; display: block; }
   .cat svg .body { animation: breathe 3.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
   @keyframes breathe { 50% { transform: scaleY(1.015); } }
   .cat svg .eyes { animation: blink 5s infinite; transform-box: fill-box; transform-origin: 50% 50%; }
@@ -46,14 +64,6 @@
   .cat.talking svg .tongue { animation: tongue 0.28s steps(2) infinite; }
   @keyframes talk { 50% { transform: translateY(1px); } }
   @keyframes tongue { 0% { opacity: 0; } 50% { opacity: 1; } }
-  .cat.thinking svg { animation: tilt 1.2s ease-in-out infinite; transform-origin: 50% 90%; }
-  @keyframes tilt { 50% { transform: rotate(-6deg); } }
-  .cat.listening::after { content: "👂"; position: absolute; right: -6px; top: -6px; font-size: clamp(22px, 4vmin, 40px); animation: zzz 1.6s ease-in-out infinite; }
-  .cat { position: relative; }
-  .thinkdots { color: var(--sub); }
-  .thinkdots i { font-style: normal; animation: dot 1.2s infinite; }
-  .thinkdots i:nth-child(2) { animation-delay: 0.2s; } .thinkdots i:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes dot { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
   .cat.wave .paw { animation: wave 0.45s ease-in-out 4; }
   @keyframes wave { 50% { transform: translateY(-7px); } }
   .cat.hop svg { animation: hop 0.5s ease-out 2; }
@@ -64,93 +74,6 @@
   @keyframes sleepbreath { 50% { transform: scale(1.03, 1.035); } }
   .sleep .cat svg .eyes { animation: none; }
   @media (prefers-reduced-motion: reduce) { .cat svg *, .cat svg { animation: none !important; } }
-
-  /* 店番モード：お客さんは何もさわらない。猫が主役、品は値札として見せるだけ */
-  body[data-mode="miseban"] .shop { flex-direction: column; align-items: center; flex: 1; justify-content: center; gap: clamp(16px, 3vh, 32px); }
-  body[data-mode="miseban"] .shop .cat { width: clamp(200px, 42vmin, 440px); }
-  body[data-mode="miseban"] .shop .bubble { flex: none; min-height: 0; width: 100%; max-width: 860px; text-align: center; font-size: clamp(22px, 3.4vmin, 38px); }
-  body[data-mode="miseban"] .shop .cat { width: clamp(220px, 48vmin, 480px); }
-  body[data-mode="miseban"] .shop .bubble::before { display: none; }
-  body[data-mode="miseban"] #items, body[data-mode="miseban"] .total, body[data-mode="miseban"] main > h2 { display: none; }
-  .shinagaki { display: none; }
-  body[data-mode="miseban"] .shinagaki {
-    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 14px; margin-top: 14px;
-  }
-  .shinagaki span {
-    background: var(--card); border: 2px solid var(--line); border-radius: 999px; padding: 8px 16px;
-    font-size: clamp(16px, 2.5vmin, 26px); color: var(--ink);
-  }
-  .shinagaki span.out { opacity: 0.45; text-decoration: line-through; }
-  .modes { display: grid; gap: 8px; }
-  .openmodes { max-width: 560px; text-align: left; }
-  .openhint:empty { display: none; }
-  .codebox { color: var(--sub); display: flex; gap: 10px; align-items: center; }
-  .codebox input { font: inherit; font-size: 18px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--line); background: #fff; color: #3b3a36; width: 220px; -webkit-user-select: text; user-select: text; }
-  .openhint { color: #b4542e !important; }
-  .modes label { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
-  .modes small { display: block; color: var(--sub); }
-  .leftinput { width: 80px; font: inherit; font-size: 18px; padding: 6px 8px; border-radius: 8px; border: 2px solid var(--line); background: #fff; color: #3b3a36; text-align: right; -webkit-user-select: text; user-select: text; }
-  .bubble {
-    flex: 1; position: relative; background: #fff; border: 2px solid var(--ink);
-    border-radius: 18px; padding: clamp(14px, 2vw, 24px) clamp(16px, 2.4vw, 28px);
-    font-size: clamp(19px, 2.7vw, 32px); line-height: 1.6; min-height: 92px;
-  }
-  .bubble::before {
-    content: ""; position: absolute; left: -12px; bottom: 22px;
-    border: 6px solid transparent; border-right: 6px solid var(--ink);
-  }
-
-  /* 品 */
-  h2 { font-size: clamp(15px, 1.7vw, 20px); color: var(--sub); font-weight: normal; margin: clamp(18px, 3vh, 36px) 4px 10px; }
-  .items {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(clamp(150px, 19vw, 230px), 1fr));
-    grid-auto-rows: minmax(clamp(150px, 22vmin, 220px), 1fr);
-    gap: clamp(12px, 1.6vw, 20px); align-content: stretch; flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 8px;
-  }
-  .item { position: relative; background: var(--card); border: 2px solid var(--line); border-radius: 16px; }
-  .item .add {
-    display: flex; flex-direction: column; justify-content: center; width: 100%; height: 100%;
-    background: none; border: 0; padding: clamp(14px, 2vw, 24px);
-    text-align: left; font: inherit; color: inherit; cursor: pointer;
-  }
-  .item .add:active { transform: scale(0.97); }
-  .item .emoji { font-size: clamp(40px, 9vmin, 96px); line-height: 1.1; }
-  .item .name { font-size: clamp(19px, 3.4vmin, 34px); margin-top: 6px; }
-  .item .price { color: var(--sub); font-size: clamp(16px, 2.7vmin, 26px); }
-  .item .left { color: var(--sub); font-size: clamp(13px, 1.9vmin, 18px); }
-  .item .count {
-    position: absolute; top: 12px; right: 12px; background: var(--mint); color: #fff; border-radius: 999px;
-    min-width: 30px; text-align: center; font-weight: bold; padding: 4px 12px; visibility: hidden;
-    background: var(--mint-deep); font-size: clamp(14px, 2.2vmin, 20px);
-  }
-  .item.picked { border-color: var(--mint-deep); }
-  .item.picked .count { visibility: visible; }
-  .item .minus {
-    position: absolute; right: 12px; bottom: 12px; width: clamp(42px, 5vw, 60px); height: clamp(42px, 5vw, 60px);
-    border-radius: 999px; border: 2px solid var(--mint-deep); background: #fff; color: var(--mint-deep);
-    font-size: 22px; line-height: 1; cursor: pointer; display: none;
-  }
-  .item.picked .minus { display: block; }
-  .item.soldout { opacity: 0.45; }
-  .item.soldout .add { cursor: default; }
-
-  /* おあいそ */
-  .total {
-    margin-top: 16px; display: flex; align-items: center; justify-content: space-between;
-    background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: clamp(14px, 2vw, 24px) clamp(16px, 2.4vw, 28px);
-    font-size: clamp(16px, 1.9vw, 24px);
-  }
-  .total .yen { font-size: clamp(30px, 4.4vw, 54px); font-weight: bold; }
-  .buttons { display: flex; gap: 10px; }
-  button.main, button.sub {
-    font: inherit; border-radius: 999px; padding: clamp(12px, 1.6vw, 20px) clamp(20px, 2.6vw, 36px); cursor: pointer; border: 2px solid var(--mint-deep);
-  }
-  button.main { background: var(--mint-deep); color: #fff; font-size: clamp(18px, 2.2vw, 28px); }
-  button.sub { background: transparent; color: var(--mint-deep); }
-  button:disabled { opacity: 0.4; cursor: default; }
-
-  .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; color: var(--sub); font-size: clamp(12px, 1.3vw, 15px); }
-  .foot button { font: inherit; font-size: 13px; background: none; border: 0; color: var(--sub); text-decoration: underline; cursor: pointer; }
 
   /* 寝とる時 */
   .sleep {
@@ -163,175 +86,54 @@
   .sleep .zzz { font-size: 28px; letter-spacing: 6px; animation: zzz 2.4s ease-in-out infinite; }
   @keyframes zzz { 50% { opacity: 0.3; transform: translateY(-6px); } }
   .sleep p { margin: 0; font-size: 18px; line-height: 1.7; }
-  .sleep small { color: #a9a395; font-size: 13px; }
 
   /* 開店前 */
   .open {
-    position: fixed; inset: 0; background: var(--bg); z-index: 20;
+    position: fixed; inset: 0; background: var(--bg); z-index: 20; overflow-y: auto;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px; text-align: center;
   }
   .open.hidden { display: none; }
   .open h1 { margin: 0; font-size: 26px; }
   .open p { margin: 0; color: var(--sub); line-height: 1.7; }
   .open .cat { width: 160px; }
-  .open button.main { font-size: 22px; padding: 16px 40px; }
-
-  /* 店主さんの画面 */
-  .owner { position: fixed; inset: 0; background: var(--bg); z-index: 30; overflow-y: auto; padding: 24px 16px; }
-  .owner.hidden { display: none; }
-  .ownerbox { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
-  .ownerbox h1 { margin: 0; font-size: 24px; }
-  .ownerbox p { margin: 0; color: var(--sub); line-height: 1.7; }
-  .ownerbox textarea {
-    font: inherit; font-size: 18px; padding: 12px; border-radius: 14px; border: 2px solid var(--line);
-    background: #fff; color: var(--ink); -webkit-user-select: text; user-select: text;
-  }
-  .ownerbox .row { display: flex; gap: 10px; justify-content: flex-end; }
-  .neko-q:empty { display: none; }
-  .neko-q { background: #fff; border: 2px solid var(--ink); border-radius: 14px; padding: 12px 14px; }
-  .fuda-row {
-    display: grid; grid-template-columns: 40px 1fr 90px 70px 60px 36px; gap: 8px; align-items: center;
-    background: var(--card); border: 2px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px;
-  }
-  .fuda-row input { font: inherit; width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); -webkit-user-select: text; user-select: text; }
-  .fuda-row input.missing { border: 2px solid #e8a33d; background: #fff6e8; }
-  .fuda-row .emo { font-size: 26px; text-align: center; }
-  .fuda-row .del { background: none; border: 0; font-size: 20px; color: var(--sub); cursor: pointer; }
-  .fuda-head { display: grid; grid-template-columns: 40px 1fr 90px 70px 60px 36px; gap: 8px; color: var(--sub); font-size: 12px; padding: 0 10px; }
-  .open button.sub { font-size: 16px; }
-
-  /* 縦置きのiPadは2列の大きいカード */
-  @media (orientation: portrait) and (min-width: 600px) {
-    .items { grid-template-columns: repeat(2, 1fr); }
-  }
-
-  .colors { display: flex; align-items: center; gap: 10px; color: var(--sub); }
-  .colors button { width: 40px; height: 40px; border-radius: 999px; border: 2px solid var(--line); cursor: pointer; }
-  .colors button.on { border: 3px solid var(--mint-deep); }
-  .yeninput { font: inherit; font-size: 22px; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: #fff; color: #3b3a36; width: 200px; -webkit-user-select: text; user-select: text; }
-  .nippo:empty { display: none; }
-  .nippo { background: #fff; color: #3b3a36; border: 2px solid var(--ink); border-radius: 16px; padding: 16px 18px; font-size: 19px; line-height: 1.8; white-space: pre-wrap; }
-  .sumtable { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
-  .sumtable td { padding: 8px 12px; border-bottom: 1px solid var(--line); }
-  .sumtable td.n { text-align: right; font-variant-numeric: tabular-nums; }
-  #notebox summary { cursor: pointer; color: var(--sub); }
-  #notebox pre { white-space: pre-wrap; font: inherit; font-size: 15px; background: var(--card); padding: 12px; border-radius: 12px; }
-
-  /* お店の色 */
-  body[data-theme="mint"]   { --bg: #dff3ec; --card: #f6fcf9; --line: #c9e6db; }
-  body[data-theme="ajisai"] { --bg: #e6e3f4; --card: #f8f7fd; --line: #d6d1ec; --mint-deep: #7a6fb8; --mint: #b3aade; }
-  body[data-theme="sakura"] { --bg: #f8e6e8; --card: #fff9fa; --line: #efd3d7; --mint-deep: #c47a86; --mint: #e7b3bb; }
-  body[data-theme="yoru"]   { --bg: #2b2f3a; --card: #363b48; --line: #4a5060; --ink: #e9e4d8; --sub: #b4ae9f; }
-  body[data-theme="yoru"] .bubble { background: #fffdf8; color: #3b3a36; }
-  /* くっきり：日なたでも読みやすい、白地に黒・太い線 */
-  body[data-theme="kukkiri"] { --bg: #ffffff; --card: #ffffff; --line: #000000; --ink: #000000; --sub: #222222; --mint-deep: #006b52; --mint: #009973; }
-  body[data-theme="kukkiri"] .item, body[data-theme="kukkiri"] .total, body[data-theme="kukkiri"] .shop, body[data-theme="kukkiri"] .bubble { border-width: 3px; }
-  body[data-theme="kukkiri"] .item .price, body[data-theme="kukkiri"] .item .left { color: #000; font-weight: bold; }
-
-  .tiny { margin: 0; text-align: right; }
-  .tiny button { background: none; border: 0; color: var(--sub); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
-  #mic { font-size: clamp(18px, 2.2vw, 26px); }
-  #mic.listening { background: var(--mint); color: #fff; }
+  .codebox { color: var(--sub); display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
+  .codebox input { font: inherit; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--line); background: #fff; color: var(--ink); width: 220px; -webkit-user-select: text; user-select: text; }
+  .openhint { color: #a4532f !important; }
+  .openhint:empty { display: none; }
+  button.main { font: inherit; font-size: 22px; padding: 16px 40px; border-radius: 999px; border: 0; background: var(--mint-deep); color: #fff; cursor: pointer; }
+  button.main:disabled { opacity: 0.5; cursor: default; }
 
   video, canvas.probe { display: none; }
-
-  @media (max-width: 480px) {
-    .cat { width: 96px; }
-    .bubble { font-size: 17px; }
-    .total { flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
-    .buttons { justify-content: center; }
-  }
 </style>
 </head>
 <body>
 <main>
   <section class="shop">
     <div class="cat" id="cat"></div>
-    <div class="bubble" id="bubble">いらっしゃい。</div>
-  </section>
-
-  <div class="shinagaki" id="shinagaki"></div>
-  <h2>きょうの品（さわると数がふえるよ）</h2>
-  <section class="items" id="items"></section>
-
-  <section class="total">
-    <div>おあいそ <span class="yen" id="yen">0円</span></div>
-    <div class="buttons">
-      <button class="sub" id="reset">やりなおす</button>
-      <button class="main" id="paid" disabled>お金いれたよ</button>
+    <div class="side">
+      <div class="bubble" id="bubble" aria-live="polite">いらっしゃい。</div>
+      <div class="fuda" id="fuda"></div>
     </div>
   </section>
-
   <div class="foot">
-    <span id="camnote">📷 来てけだのに気づくためにカメラ、🎤 話しかけてもらうためにマイクを使ってるよ。録画も録音もしねがら安心してけれ。</span>
-    <span><button id="nap">おやすみさせる</button>　<button id="close">店じまい（店主さん）</button></span>
+    <span id="camnote">📷 通る人に気づくためにカメラを使ってるよ。録画はしねがら安心してけれ。</span>
+    <button id="close">店じまい</button>
   </div>
 </main>
 
 <div class="sleep hidden" id="sleep">
   <div class="cat" id="sleepcat"></div>
   <div class="zzz">z z z</div>
-  <p>店番、うとうと中。<br>近づくか、画面にさわると起きるよ。</p>
-  <small>📷 動いだのに気づくだけ。録画はしねよ。</small>
+  <p>店番、うとうと中。<br>近づくと起きるよ。</p>
 </div>
 
 <div class="open" id="open">
   <div class="cat" id="opencat"></div>
   <h1>庭先の店番</h1>
-  <p>店主さんへ：お店を開ける時に押してね。<br>押すと、声とカメラとマイクが使えるようになるよ。</p>
-  <div class="modes openmodes">
-    <label><input type="radio" name="mode2" value="miseban"><span><b>店番モード</b><small>お客さんは何もさわらない。品は入れでも入れねくてもいいよ</small></span></label>
-    <label><input type="radio" name="mode2" value="reji"><span><b>レジモード</b><small>お客さんが品をタップして合計を出す（品を並べてから）</small></span></label>
-  </div>
+  <p>お店を開ける時に押してね。<br>声とカメラが使えるようになるよ。<br>並べる品は、手帳で福ちゃんに話してね。</p>
   <label class="codebox">お店の合言葉 <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉"></label>
   <p class="openhint" id="openhint"></p>
   <button class="main" id="openbtn">開店する</button>
-  <button class="sub" id="ownerbtn">きょうの品を並べる</button>
-</div>
-
-<div class="owner hidden" id="owner">
-  <div class="ownerbox">
-    <h1>きょうの品を並べる</h1>
-    <p>招き猫に話しかけるみたいに書いでけれ。🎤のボタンでしゃべってもいいよ。<br>例：「ミニトマト5袋150円、大葉が4束で100円、きゅうりも少し」</p>
-    <textarea id="words" rows="3" placeholder="今日はなにを並べる？"></textarea>
-    <div class="row"><button class="sub" id="mic" hidden>🎤 話して伝える</button><button class="main" id="ask">招き猫に頼む</button></div>
-    <div class="neko-q" id="nekoq"></div>
-    <div id="fuda"></div>
-    <div class="modes">
-      <label><input type="radio" name="mode" value="miseban"><span><b>店番モード</b><small>お客さんは何もさわらない。猫が迎えて見送るだけ。店じまいで残りの数を数える（100円均一などに）</small></span></label>
-      <label><input type="radio" name="mode" value="reji"><span><b>レジモード</b><small>お客さんが品をタップして合計を出す（品や値段がいろいろな店に）</small></span></label>
-    </div>
-    <div class="colors"><span>お店の色：</span>
-      <button data-theme="kinari" style="background:#f6f1e7" aria-label="生成り"></button>
-      <button data-theme="mint" style="background:#dff3ec" aria-label="ミント"></button>
-      <button data-theme="ajisai" style="background:#e6e3f4" aria-label="紫陽花"></button>
-      <button data-theme="sakura" style="background:#f8e6e8" aria-label="さくら"></button>
-      <button data-theme="yoru" style="background:#2b2f3a" aria-label="夜"></button>
-      <button data-theme="kukkiri" style="background:#fff;border:3px solid #000" aria-label="くっきり（外向き）"></button>
-    </div>
-    <div class="row">
-      <button class="sub" id="ownercancel">もどる</button>
-      <button class="main" id="ownerok" disabled>それでええよ</button>
-    </div>
-  </div>
-</div>
-
-<div class="owner hidden" id="closing">
-  <div class="ownerbox">
-    <h1>店じまい</h1>
-    <div id="closesum"></div>
-    <p>箱のお金を数えだら入れでけれ（数えでねば、空のままでいいよ）</p>
-    <input id="boxyen" inputmode="numeric" placeholder="例：600" class="yeninput">
-    <div class="row"><button class="sub" id="closecancel">もどる</button><button class="main" id="writenippo">日報を書いてもらう</button></div>
-    <div class="nippo" id="nippo"></div>
-    <div class="row" id="readrow" style="display:none;justify-content:flex-start"><button class="sub" id="readnippo" disabled>🔊 声でも読んでもらう（準備中…）</button></div>
-    <details id="notebox"><summary>店番ノート（招き猫の記憶）</summary><pre id="notetext"></pre></details>
-    <div class="row" id="afterbtns" style="display:none">
-      <button class="sub" id="sharenippo">LINEなどに送る</button>
-      <button class="main" id="newday">また明日（記録をしまう）</button>
-    </div>
-    <p class="tiny"><button id="exportbtn">記録をファイルに書き出す（機種変更の時など）</button></p>
-  </div>
 </div>
 
 <video id="video" playsinline muted></video>
@@ -382,649 +184,290 @@ function catSVG(pixels, wave) {
   PAW.forEach((row, y) => [...row].forEach((c, x) => { if (COLORS[c]) paw += rect(15 + x, 1 + y, c); }));
   return `<svg viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" role="img" aria-label="招き猫"><g class="body">${rects}<g class="eyes">${eyes}</g><g class="mouth">${mouth}</g><g class="${wave ? "paw" : ""}">${paw}</g></g></svg>`;
 }
-document.getElementById("cat").innerHTML = catSVG(AWAKE, true);
-document.getElementById("opencat").innerHTML = catSVG(AWAKE, true);
-document.getElementById("sleepcat").innerHTML = catSVG(ASLEEP, false);
+const $ = (id) => document.getElementById(id);
+$("cat").innerHTML = catSVG(AWAKE, true);
+$("opencat").innerHTML = catSVG(AWAKE, true);
+$("sleepcat").innerHTML = catSVG(ASLEEP, false);
 
-// ---------- きょうの品（あとで店主さんが話しかけて並べる） ----------
-const SAMPLE = [
-  { id: "tomato", emoji: "🍅", name: "ミニトマト", unit: "袋", price: 150, stock: 5 },
-  { id: "negi",   emoji: "🌿", name: "小ねぎ",     unit: "束", price: 100, stock: 3 },
-  { id: "shiso",  emoji: "🍃", name: "大葉",       unit: "束", price: 100, stock: 4 },
-  { id: "kyuri",  emoji: "🥒", name: "きゅうり",   unit: "本", price: 100, stock: 6 },
-];
-let ITEMS = []; // はじめは空っぽ（見本の品は置かない）
-try {
-  const saved = JSON.parse(localStorage.getItem("niwasaki_items") || "null");
-  if (Array.isArray(saved) && saved.length) ITEMS = saved;
-} catch (e) {}
-function saveItems() { try { localStorage.setItem("niwasaki_items", JSON.stringify(ITEMS)); } catch (e) {} }
+// ---------- 決めごと ----------
+const STAY_MS = 4000;         // これだけとどまったら「立ち止まった」
+const GONE_MS = 2500;         // これだけ見えなくなったら「行った」
+const FRAME_MS = 400;         // カメラを見る間隔
+const PIXEL_DIFF = 25;        // 背景とこれだけ違う点を「何かいる」と数える
+const PRESENT_RATIO = 0.06;   // その点が画面のこの割合を超えたら「人がいる」
+const LIGHT_RATIO = 0.7;      // 画面のほとんどが変わった時は、人ではなく光の変化とみなす
+const NAP_AFTER = 60 * 1000;  // だれも来なければ寝る
+const MISE_EVERY = 5 * 60 * 1000;   // 福ちゃんの札とセリフを読み直す間隔
+const REPORT_EVERY = 5 * 60 * 1000; // 立ち止まりの人数を棚へ送る間隔
 
-// ---------- 合言葉：知らない人にAPIを使われないように、店主さんの合言葉をつけて頼む ----------
+// 福ちゃんの言葉が読めない時の決まり文句（黙らない）
+const FIXED = {
+  greet: ["よぐ来たなぁ。", "よぐ来たなぁ、ゆっくり見でってけれ。"],
+  bye: ["ありがとさん。まだ来てけれな。"],
+};
+
+// ---------- 合言葉 ----------
 let shopCode = (() => { try { return localStorage.getItem("niwasaki_code") || ""; } catch (e) { return ""; } })();
-let codeRejected = false;
-async function apiFetch(url, opts = {}) {
-  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), "x-shop-code": shopCode } });
-  if (r.status === 403) {
-    codeRejected = true;
-    const h = document.getElementById("openhint");
-    if (h) h.textContent = "合言葉がちがうみたいだ。店主さんの合言葉を入れでけれ。";
+$("shopcode").value = shopCode;
+$("shopcode").oninput = (e) => {
+  shopCode = e.target.value.trim();
+  $("openhint").textContent = "";
+  try { localStorage.setItem("niwasaki_code", shopCode); } catch (err) {}
+};
+const apiFetch = (url, opts = {}) => fetch(url, { ...opts, headers: { ...(opts.headers || {}), "x-shop-code": shopCode } });
+
+// ---------- 福ちゃんの札とセリフ（猫は読むだけ） ----------
+let mise = { items: [], lines: { greet: [], bye: [] } };
+
+function drawFuda() {
+  const box = $("fuda");
+  box.replaceChildren();
+  for (const it of mise.items) {
+    const card = document.createElement("div");
+    const price = document.createElement("b");
+    price.textContent = `${it.price.toLocaleString("ja-JP")}円`;
+    card.append(it.name, price);
+    if (it.left !== undefined) {
+      const left = document.createElement("small");
+      left.textContent = it.left === 0 ? "売り切れ" : `のこり ${it.left}`;
+      card.append(left);
+    }
+    box.append(card);
   }
-  return r;
 }
 
-// ---------- Claude（店番の頭）にたずねる。だめなら決まり文句 ----------
-const recentLines = [];
-async function askNeko(scene, extra = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 7000);
+// 読めた時だけ入れ替える。戻り値は 403 かどうか
+async function loadMise() {
   try {
-    const r = await apiFetch("/api/aisatsu", {
-      method: "POST", signal: ctrl.signal,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scene, now: new Date().toLocaleString("ja-JP", { weekday: "short", hour: "2-digit", minute: "2-digit" }),
-        items: ITEMS, recent: recentLines, note, ...extra,
-      }),
-    });
-    const j = await r.json();
-    return j.line || null;
-  } catch (e) { return null; } finally { clearTimeout(timer); }
+    const r = await apiFetch("/api/techo?do=mise");
+    if (r.status === 403) return true;
+    if (r.ok) {
+      mise = await r.json();
+      drawFuda();
+      prepareVoices();
+    }
+  } catch (e) {}
+  return false;
 }
-function remember(line) { recentLines.push(line.replace(/<[^>]+>/g, "")); if (recentLines.length > 5) recentLines.shift(); }
-const cart = {};
-// 売れた記録・朝の数・店番ノート（記憶）は全部この iPad の中だけに置く
-const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? d; } catch (e) { return d; } };
-const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-const sales = load("niwasaki_sales", []);
-let note = load("niwasaki_note", "");
-let startStock = load("niwasaki_start", null) || Object.fromEntries(ITEMS.map(it => [it.id, it.stock]));
-store("niwasaki_start", startStock);
 
-// ---------- しゃべる ----------
-const bubble = document.getElementById("bubble");
-let voice = null;
-function pickVoice() {
-  const vs = speechSynthesis.getVoices().filter(v => v.lang && v.lang.startsWith("ja"));
-  // Chrome なら Google の声が一番自然。iPad の Safari には無いので、Apple の拡張版の声を探す
-  voice = vs.find(v => /Google/.test(v.name))
-       || vs.find(v => /(拡張|Enhanced|Premium)/.test(v.name))
-       || vs.find(v => /Kyoko|O-ren|Hattori/.test(v.name)) || vs[0] || null;
+const linesOf = (kind) => (mise.lines[kind].length ? mise.lines[kind] : FIXED[kind]);
+let lastLine = "";
+function pickLine(kind) {
+  const list = linesOf(kind);
+  const others = list.filter((t) => t !== lastLine);
+  const from = others.length ? others : list;
+  lastLine = from[Math.floor(Math.random() * from.length)];
+  return lastLine;
 }
-if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 
-// 声は2段構え：Gemini の声（Laomedeia）が作れたらそれ、だめなら iPad の声
+// ---------- 声：開店時に先に作っておく。間に合わない時は端末の声で、待たせない ----------
 const player = new Audio();
 player.playsInline = true;
-const setTalking = (on) => document.getElementById("cat").classList.toggle("talking", on);
+const setTalking = (on) => $("cat").classList.toggle("talking", on);
 player.addEventListener("play", () => setTalking(true));
-["ended", "pause", "error"].forEach(ev => player.addEventListener(ev, () => setTalking(false)));
-const plain = (html) => html.replace(/<br>/g, "、").replace(/<[^>]+>/g, "");
+["ended", "pause", "error"].forEach((ev) => player.addEventListener(ev, () => setTalking(false)));
 
+let voice = null;
+function pickVoice() {
+  const vs = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.startsWith("ja"));
+  voice = vs.find((v) => /Google/.test(v.name)) || vs.find((v) => /(拡張|Enhanced|Premium)/.test(v.name))
+       || vs.find((v) => /Kyoko|O-ren|Hattori/.test(v.name)) || vs[0] || null;
+}
+if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
 function speakFallback(text) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP"; if (voice) u.voice = voice;
   u.rate = 1.0; u.pitch = 1.15;
-  u.onstart = () => setTalking(true); u.onend = u.onerror = () => setTalking(false);
+  u.onstart = () => setTalking(true);
+  u.onend = u.onerror = () => setTalking(false);
   speechSynthesis.speak(u);
 }
-async function makeVoice(text) {
-  try {
-    const r = await apiFetch("/api/koe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-    if (r.status !== 200) return null;
-    return URL.createObjectURL(await r.blob());
-  } catch (e) { return null; }
+
+const voices = new Map(); // セリフ → 作った声のURL（作れなければ null）
+let preparing = false;
+async function prepareVoices() {
+  if (preparing) return;
+  preparing = true;
+  const wanted = [...linesOf("greet"), ...linesOf("bye"), ...FIXED.greet, ...FIXED.bye];
+  for (const text of wanted) {
+    if (voices.get(text)) continue;
+    try {
+      const r = await apiFetch("/api/koe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+      voices.set(text, r.status === 200 ? URL.createObjectURL(await r.blob()) : null);
+    } catch (e) { voices.set(text, null); }
+  }
+  preparing = false;
 }
-function playVoice(url, text) {
+
+function say(text) {
+  $("bubble").textContent = text;
   if ("speechSynthesis" in window) speechSynthesis.cancel();
   player.pause();
+  const url = voices.get(text);
   if (!url) { speakFallback(text); return; }
   player.src = url;
   player.play().catch(() => speakFallback(text));
 }
-// html を吹き出しに出す。voiceUrl を渡せばその声、speak=true だけなら今から声を作る
-async function say(html, speak = true, voiceUrl = null) {
-  bubble.innerHTML = html;
-  if (!speak) return;
-  const text = plain(html);
-  playVoice(voiceUrl ?? await makeVoice(text), text);
+
+function catMove(...names) {
+  const c = $("cat");
+  c.classList.remove("wave", "hop", "stretch");
+  void c.offsetWidth;
+  c.classList.add(...names);
 }
 
-// ---------- いらっしゃい（いまは決まり文句。あとで Claude がその場で考える） ----------
-function timeWord() {
-  const h = new Date().getHours();
-  if (h < 10) return "朝";
-  if (h < 16) return "昼";
-  return "夕方";
-}
-function greeting() {
-  const left = ITEMS.filter(it => it.stock > 0);
-  const few = left.find(it => it.stock <= 2);
-  const lines = [];
-  const t = timeWord();
-  lines.push(t === "朝" ? "おはようございます、よぐ来たなぁ。" : t === "昼" ? "よぐ来たなぁ、いらっしゃい。" : "おばんです、よぐ来たなぁ。");
-  if (!left.length) return "よぐ来たなぁ。<br>わりな、今日はもう売り切れだんだ。";
-  if (few) lines.push(`${few.name}だば、あと${few.stock}${few.unit}だよ。`);
-  else lines.push(`今日は${left[Math.floor(Math.random() * left.length)].name}がいい感じだよ。`);
-  return lines.join("<br>");
-}
+// ---------- 立ち止まった人数（数だけ。棚へはサーバーが書く） ----------
+const todayText = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+let stops = (() => { try { return JSON.parse(localStorage.getItem("niwasaki_stops")) || null; } catch (e) { return null; } })() || { date: todayText(), count: 0, sent: 0 };
+const saveStops = () => { try { localStorage.setItem("niwasaki_stops", JSON.stringify(stops)); } catch (e) {} };
 
-// うとうとしとる間に、次の「いらっしゃい」を声まで作っておく（来てくれた瞬間にしゃべれるように）
-let ready = null, preparing = false, readyAt = 0;
-async function prepareGreeting() {
-  if (preparing) return;
-  preparing = true;
+async function sendReport() {
+  if (stops.count === stops.sent) return;
+  const { date, count } = stops;
   try {
-    const line = (await askNeko("greet")) || greeting();
-    const url = await makeVoice(plain(line));
-    if (ready?.url) URL.revokeObjectURL(ready.url);
-    ready = { text: line, url };
-    readyAt = Date.now();
-  } finally { preparing = false; }
+    const r = await apiFetch("/api/techo?do=report", {
+      method: "POST", keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, count }),
+    });
+    if (r.ok && stops.date === date) { stops.sent = count; saveStops(); }
+  } catch (e) {} // 次の回にまた送る
 }
-// お礼も同じく先に作っておく（金額に触れない、どの買い物にも使える一言）
-let readyThanks = null, preparingThanks = false;
-async function prepareThanks() {
-  if (preparingThanks) return;
-  preparingThanks = true;
-  try {
-    const line = await askNeko("thanks");
-    if (!line) return;
-    const url = await makeVoice(plain(line));
-    if (readyThanks?.url) URL.revokeObjectURL(readyThanks.url);
-    readyThanks = { text: line, url };
-  } finally { preparingThanks = false; }
-}
-
-// 時間がたったら（朝→昼など）作り直す
-setInterval(() => { if (shopOpen && (!ready || Date.now() - readyAt > 15 * 60 * 1000)) prepareGreeting(); }, 60 * 1000);
-
-// ---------- モード：店番（お客さんは何もさわらない）／レジ（タップで合計） ----------
-let mode = load("niwasaki_mode", "miseban");
-function setMode(m) {
-  mode = m === "reji" ? "reji" : "miseban";
-  document.body.dataset.mode = mode;
-  document.querySelectorAll('input[name="mode"], input[name="mode2"]').forEach(r => r.checked = r.value === mode);
-  store("niwasaki_mode", mode);
-  updateOpenHint();
-}
-function updateOpenHint() {
-  const needItems = mode === "reji" && ITEMS.length === 0;
-  document.getElementById("openhint").textContent = needItems ? "レジモードは、先に「きょうの品を並べる」で品を入れでけれ。" : "";
-  document.getElementById("openbtn").disabled = needItems;
-  try { checkDraft(); } catch (e) {} // 品札の下書きがまだ無い時は何もしない
-}
-document.querySelectorAll('input[name="mode"], input[name="mode2"]').forEach(r => r.onchange = () => setMode(r.value));
-setMode(mode);
-
-// ---------- 品の表示 ----------
-function total() { return ITEMS.reduce((s, it) => s + (cart[it.id] || 0) * it.price, 0); }
-
-function render() {
-  const box = document.getElementById("items");
-  box.innerHTML = "";
-  ITEMS.forEach((it) => {
-    const n = cart[it.id] || 0;
-    const card = document.createElement("div");
-    card.className = "item" + (n ? " picked" : "") + (it.stock === 0 ? " soldout" : "");
-    card.innerHTML = `<button class="add"><span class="count">${n}${it.unit} えらんだ</span><div class="emoji">${it.emoji}</div>
-      <div class="name">${it.name}</div><div class="price">${it.price}円</div>
-      <div class="left">${it.stock === 0 ? "売り切れ" : `棚にのこり ${it.stock}${it.unit}`}</div></button>
-      <button class="minus" aria-label="${it.name}をひとつへらす">−</button>`;
-    card.querySelector(".add").onclick = () => pick(it);
-    card.querySelector(".minus").onclick = () => unpick(it);
-    box.appendChild(card);
-  });
-  document.getElementById("shinagaki").innerHTML = ITEMS.map(it =>
-    `<span class="${it.stock === 0 ? "out" : ""}">${esc(it.emoji)} ${esc(it.name)} ${it.price}円</span>`).join("");
-  document.getElementById("yen").textContent = total() + "円";
-  document.getElementById("paid").disabled = total() === 0;
-}
-
-function pick(it) {
-  tapped();
-  const n = cart[it.id] || 0;
-  if (it.stock === 0) { say(`${it.name}は売り切れだんだ、わりな。`, false); return; }
-  if (n >= it.stock) { say(`${it.name}は、それで最後だよ。`, false); return; }
-  cart[it.id] = n + 1;
-  render();
-  say(`${it.name}、${cart[it.id]}${it.unit}な。ぜんぶで <b>${total()}円</b> だよ。<br>お代は箱さ入れで、「お金いれたよ」を押してけれな。`, false);
-}
-
-function unpick(it) {
-  tapped();
-  cart[it.id] = Math.max(0, (cart[it.id] || 0) - 1);
-  if (!cart[it.id]) delete cart[it.id];
-  render();
-  const n = cart[it.id] || 0;
-  say(n ? `${it.name}、${n}${it.unit}にしたよ。<br>ぜんぶで <b>${total()}円</b>。`
-        : `${it.name}はやめとぐんだな。<br>ぜんぶで <b>${total()}円</b>。`, false);
-}
-
-document.getElementById("reset").onclick = () => {
-  tapped();
-  for (const k in cart) delete cart[k];
-  render();
-  say("はいはい、やりなおしな。<br>ゆっくり選んでってけれ。", false);
-};
-
-document.getElementById("paid").onclick = () => {
-  tapped();
-  const t = total();
-  const bought = ITEMS.filter(it => cart[it.id]).map(it => ({ id: it.id, name: it.name, n: cart[it.id], price: it.price }));
-  bought.forEach(b => { ITEMS.find(it => it.id === b.id).stock -= b.n; });
-  saveItems();
-  sales.push({ at: new Date().toISOString(), time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }), items: bought, total: t });
-  store("niwasaki_sales", sales);
-  for (const k in cart) delete cart[k];
-  render();
-  const c = document.getElementById("cat");
-  c.classList.remove("wave", "hop"); void c.offsetWidth; c.classList.add("wave", "hop");
-  // お礼は先に作っておいた声をすぐ鳴らす（金額は字だけで見せる）
-  const th = readyThanks; readyThanks = null;
-  const thText = th?.text || FIXED.arigato;
-  say(`<b>${t}円</b>、たしかに。<br>${thText}`, true, th?.url ?? fixedVoice.arigato ?? null);
-  remember(thText);
-  // 残りの数が変わったので、次のあいさつとお礼を少ししてから作り直す
-  setTimeout(() => { prepareGreeting(); prepareThanks(); }, 8000);
-};
-
-// ---------- お話し：猫が耳をすまして、話しかけられたら答える ----------
-// 声は iPad の音声認識で文字にするだけ（録音は残さない）。猫がしゃべっている間は聞かない
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let ear = null, earWanted = false, talkBusy = false, needTapToTalk = false;
-const catEl = () => document.getElementById("cat");
-function listen() {
-  if (!SR || asleep || talkBusy || ear || !shopOpen) return;
-  if (!player.paused || (window.speechSynthesis && speechSynthesis.speaking)) return;
-  try {
-    ear = new SR();
-    ear.lang = "ja-JP"; ear.interimResults = false; ear.continuous = false;
-    ear.onresult = (e) => {
-      const heard = [...e.results].map(r => r[0].transcript).join("").trim();
-      if (heard) answer(heard);
-    };
-    ear.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") needTapToTalk = true; };
-    ear.onend = () => { ear = null; catEl().classList.remove("listening"); };
-    ear.start();
-    catEl().classList.add("listening");
-  } catch (e) { ear = null; needTapToTalk = true; }
-}
-async function answer(heard) {
-  talkBusy = true; touch(); lastMotion = Date.now();
-  catEl().classList.add("thinking");
-  // 考えている間はしゃべらず、首をかしげて「考え中」を見せる（えみ 11/2：相づちだと会話っぽくなる）
-  bubble.innerHTML = `<small style="opacity:.6">「${esc(heard)}」</small><br><span class="thinkdots">考え中<i>.</i><i>.</i><i>.</i></span>`;
-  const line = await askNeko("talk", { heard, mode });
-  const text = line || "わりな、よぐ聞ごえねがった。もう一回しゃべってけれ。";
-  const url = await makeVoice(plain(text));
-  if (!player.paused) await new Promise(r => player.addEventListener("ended", r, { once: true }));
-  catEl().classList.remove("thinking");
-  talkBusy = false;
-  say(text, true, url); remember(text);
-}
-// 猫がしゃべり終わったら、また耳をすます
-player.addEventListener("ended", () => { lastMotion = Date.now(); setTimeout(listen, 400); });
-// 聞き取りが勝手に止まっていたら、お客さんがいる間はかけ直す
-setInterval(() => { if (!asleep && visit.active && !ear && !talkBusy && !needTapToTalk) listen(); }, 1500);
-// iPad がタッチなしの聞き取りを許さない時は、猫をなでるとお話しできる
-document.getElementById("cat").addEventListener("click", () => { needTapToTalk = false; listen(); });
-
-// ---------- 寝る・起きる ----------
-const sleepEl = document.getElementById("sleep");
-let asleep = false, lastActive = Date.now();
-const NAP_AFTER = 60 * 1000; // 1分だれも来んかったら寝る
-
-// ---------- 呼び止め：お客さんが帰っていく時のひとこと ----------
-// 猫にわかるのは「画面のタップ」と「カメラの前の動き」だけ。品物を持っていったかは知らないので、疑う言い方はしない
-const LEAVE_AFTER = 8 * 1000; // 動きもタップも8秒なければ「帰った」とみなす
-let cameraOn = false, lastMotion = 0, lastTap = 0;
-let visit = { active: false, tapped: false, called: false };
-const FIXED = {
-  matte: "あっ、待ってけれ〜！お代、まだだよ〜。箱さ入れで、ボタン押してけれな。",
-  mata: "まだ来てけれな〜。買う時は、画面さわってけれな。",
-  yogu: "よぐ来たなぁ。ゆっくり見でってけれ。",
-  arigato: "ありがとさん。おいしぐ食べでけれな。",
-  bye: "ありがとさん。お代は箱さ入れでけれな。まだ来てけれ〜。",
-};
-let visits = load("niwasaki_visits", 0);
-function newVisit() { visit = { active: true, tapped: false, called: false }; visits++; store("niwasaki_visits", visits); }
-const fixedVoice = {};
-async function prepareFixedVoices() { for (const k of ["yogu", "bye", "arigato", "matte", "mata"]) if (!fixedVoice[k]) fixedVoice[k] = await makeVoice(FIXED[k]); }
-setInterval(() => {
-  if (!cameraOn || asleep || !visit.active) return;
-  // 会話中（考え中・しゃべり中・耳をすまし中）は「帰った」と判定しない
-  if (talkBusy || ear || !player.paused || (window.speechSynthesis && speechSynthesis.speaking)) return;
-  const now = Date.now();
-  if (now - lastMotion < LEAVE_AFTER || now - lastTap < LEAVE_AFTER) return;
-  if (mode === "miseban") {
-    // 店番モード：だれにでも同じ見送り（品物を持っていったかは猫にはわからないので、疑わない）
-    say(FIXED.bye, true, fixedVoice.bye ?? null);
-  } else if (Object.keys(cart).length && !visit.called) {
-    visit.called = true;
-    say(FIXED.matte, true, fixedVoice.matte ?? null);
-  } else if (!visit.tapped) {
-    say(FIXED.mata, true, fixedVoice.mata ?? null);
+function countStop() {
+  if (stops.date !== todayText()) {
+    sendReport(); // 前の日の分を送ってから、きょうの分を数え直す
+    stops = { date: todayText(), count: 0, sent: 0 };
   }
-  visit.active = false;
-}, 1000);
-
-function touch() { lastActive = Date.now(); }
-function tapped() { lastTap = Date.now(); visit.tapped = true; touch(); }
-function sleep() {
-  if (asleep) return;
-  asleep = true;
-  if (ear) { try { ear.abort(); } catch (e) {} ear = null; }
-  for (const k in cart) delete cart[k];
-  render();
-  sleepEl.classList.remove("hidden");
-  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  stops.count++;
+  saveStops();
 }
-function wake(byMotion) {
+
+// ---------- カメラ：背景との差だけ見る（画像は保存も送信もしない） ----------
+const watcher = { bg: null, seen: false, since: 0, lastSeen: 0, stopped: false };
+
+// 灰色の小さな画面を一枚見て、"pass"（来た）/"stop"（立ち止まった）/"leave"（立ち止まった人が行った）/null を返す
+function judge(w, gray, now) {
+  if (!w.bg) { w.bg = Float32Array.from(gray); return null; }
+  let changed = 0;
+  for (let i = 0; i < gray.length; i++) if (Math.abs(gray[i] - w.bg[i]) > PIXEL_DIFF) changed++;
+  const ratio = changed / gray.length;
+  if (ratio > LIGHT_RATIO) { w.bg = Float32Array.from(gray); return null; }
+  const present = ratio > PRESENT_RATIO;
+  const rate = present ? 0.002 : 0.05; // 背景は、人がいる間はほとんど覚え直さない
+  for (let i = 0; i < gray.length; i++) w.bg[i] += (gray[i] - w.bg[i]) * rate;
+
+  if (present) {
+    w.lastSeen = now;
+    if (!w.seen) { w.seen = true; w.since = now; w.stopped = false; return "pass"; }
+    if (!w.stopped && now - w.since >= STAY_MS) { w.stopped = true; return "stop"; }
+    return null;
+  }
+  if (w.seen && now - w.lastSeen > GONE_MS) {
+    const stayed = w.stopped;
+    w.seen = false; w.stopped = false;
+    return stayed ? "leave" : null;
+  }
+  return null;
+}
+
+function onWatch(event) {
+  if (!event) { if (watcher.seen) touch(); return; }
   touch();
-  if (!asleep) return;
-  newVisit();
-  asleep = false;
-  sleepEl.classList.add("hidden");
-  const c = document.getElementById("cat");
-  c.classList.remove("stretch"); void c.offsetWidth; c.classList.add("stretch");
-  if (ready) {
-    const g = ready; ready = null;
-    say(g.text, true, g.url); remember(g.text);
-    setTimeout(prepareGreeting, 20 * 1000); // 次のお客さんの分を、少ししてから作っておく
-  } else {
-    say(FIXED.yogu, true, fixedVoice.yogu ?? null);
-    prepareGreeting();
+  if (event === "pass") {
+    if (asleep) wake();
+    catMove("wave"); // 声なしで手を振る
+  } else if (event === "stop") {
+    countStop();
+    catMove("wave", "hop");
+    say(pickLine("greet"));
+  } else if (event === "leave") {
+    say(pickLine("bye"));
   }
 }
-sleepEl.addEventListener("click", () => wake(false));
-document.getElementById("nap").onclick = sleep;
-setInterval(() => { if (!asleep && Date.now() - lastActive > NAP_AFTER) sleep(); }, 2000);
 
-// ---------- カメラ：動いたかどうかだけ見る（画像は保存も送信もしない） ----------
-const video = document.getElementById("video");
-const probe = document.getElementById("probe");
+const video = $("video");
+const probe = $("probe");
 const ctx = probe.getContext("2d", { willReadFrequently: true });
-let prev = null;
-const MOTION = 18; // 動きの敏感さ（小さいほど敏感）
-
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: false });
-    video.srcObject = stream;
-    await video.play();
-    cameraOn = true; lastMotion = Date.now();
-    setInterval(checkMotion, 400);
-  } catch (e) {
-    document.getElementById("camnote").textContent = "📷 カメラ使えねがったがら、画面ささわれば起ぎるよ。";
-  }
-}
-function checkMotion() {
-  if (video.readyState < 2) return;
+let stream = null;
+function lookOnce() {
+  if (!stream || video.readyState < 2) return;
   ctx.drawImage(video, 0, 0, probe.width, probe.height);
   const d = ctx.getImageData(0, 0, probe.width, probe.height).data;
   const gray = new Uint8Array(probe.width * probe.height);
-  for (let i = 0; i < gray.length; i++) gray[i] = (d[i*4] + d[i*4+1] + d[i*4+2]) / 3;
-  if (prev) {
-    let diff = 0;
-    for (let i = 0; i < gray.length; i++) diff += Math.abs(gray[i] - prev[i]);
-    diff /= gray.length;
-    if (diff > MOTION) {
-      lastMotion = Date.now();
-      if (asleep) wake(true);
-      else { touch(); if (!visit.active) newVisit(); }
-    }
+  for (let i = 0; i < gray.length; i++) gray[i] = (d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]) / 3;
+  onWatch(judge(watcher, gray, Date.now()));
+}
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 320, height: 240 }, audio: false });
+    video.srcObject = stream;
+    await video.play();
+    watcher.bg = null; watcher.seen = false;
+  } catch (e) {
+    stream = null;
+    $("camnote").textContent = "📷 カメラが使えないので、いまは人に気づけないよ。";
   }
-  prev = gray;
 }
+setInterval(lookOnce, FRAME_MS);
 
-// ---------- 開店 ----------
+// ---------- 寝る・起きる ----------
+let shopOpen = false, asleep = false, lastActive = Date.now();
+function touch() { lastActive = Date.now(); }
+function wake() {
+  touch();
+  if (!asleep) return;
+  asleep = false;
+  $("sleep").classList.add("hidden");
+  catMove("stretch");
+}
+$("sleep").addEventListener("click", wake);
+setInterval(() => {
+  if (shopOpen && !asleep && Date.now() - lastActive > NAP_AFTER) {
+    asleep = true;
+    $("sleep").classList.remove("hidden");
+  }
+}, 2000);
+
+// ---------- 開店と店じまい ----------
 let wakeLock = null;
-async function keepScreenOn() {
-  try { wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
-}
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wakeLock) keepScreenOn(); });
+async function keepScreenOn() { try { wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && shopOpen) keepScreenOn();
+  if (document.visibilityState === "hidden" && shopOpen) sendReport();
+});
+setInterval(() => { if (shopOpen) loadMise(); }, MISE_EVERY);
+setInterval(() => { if (shopOpen) sendReport(); }, REPORT_EVERY);
 
-let shopOpen = false;
-document.getElementById("shopcode").value = shopCode;
-document.getElementById("shopcode").oninput = (e) => {
-  shopCode = e.target.value.trim(); codeRejected = false;
-  try { localStorage.setItem("niwasaki_code", shopCode); } catch (err) {}
-  updateOpenHint();
-};
-document.getElementById("openbtn").onclick = async () => {
-  document.getElementById("open").classList.add("hidden");
-  shopOpen = true;
-  keepScreenOn();
+$("openbtn").onclick = async () => {
   // iPad は最初のタッチの時に一回鳴らしておかないと、あとで声が出せない
   player.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
   player.play().catch(() => {});
   if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
-  say("開店だよ。<br>今日もよろしくな。");
+  $("openbtn").disabled = true;
+  const rejected = await loadMise();
+  $("openbtn").disabled = false;
+  if (rejected) {
+    $("openhint").textContent = "合言葉がちがうみたいだ。店主さんの合言葉を入れでけれ。";
+    return;
+  }
+  $("open").classList.add("hidden");
+  shopOpen = true;
+  touch();
+  keepScreenOn();
   startCamera();
-  touch();
-  prepareFixedVoices().then(() => { prepareGreeting(); prepareThanks(); });
+  prepareVoices(); // 読めなかった時も、決まり文句の声は作っておく
 };
 
-// ---------- 店主さん：話しことばから品札 ----------
-const owner = document.getElementById("owner");
-let draft = [];
-document.getElementById("ownerbtn").onclick = () => {
-  draft = ITEMS.map(it => ({ ...it }));
-  renderDraft();
-  owner.classList.remove("hidden");
+$("close").onclick = () => {
+  sendReport();
+  shopOpen = false;
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  $("openhint").textContent = "今日もおつかれさん。";
+  $("open").classList.remove("hidden");
 };
-document.getElementById("ownercancel").onclick = () => owner.classList.add("hidden");
-
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-
-function renderDraft() {
-  const box = document.getElementById("fuda");
-  if (!draft.length) { box.innerHTML = ""; checkDraft(); return; }
-  box.innerHTML = `<div class="fuda-head"><span></span><span>品</span><span>値段（円）</span><span>数</span><span>単位</span><span></span></div>` +
-    draft.map((it, i) => `<div class="fuda-row" data-i="${i}">
-      <div class="emo">${esc(it.emoji)}</div>
-      <input data-k="name" value="${esc(it.name)}">
-      <input data-k="price" inputmode="numeric" value="${it.price ?? ""}" class="${it.price == null ? "missing" : ""}" placeholder="？">
-      <input data-k="stock" inputmode="numeric" value="${it.stock ?? ""}" class="${it.stock == null ? "missing" : ""}" placeholder="？">
-      <input data-k="unit" value="${esc(it.unit)}">
-      <button class="del" aria-label="消す">×</button></div>`).join("");
-  box.querySelectorAll(".fuda-row").forEach(row => {
-    const i = +row.dataset.i;
-    row.querySelectorAll("input").forEach(inp => inp.oninput = () => {
-      const k = inp.dataset.k;
-      draft[i][k] = (k === "price" || k === "stock") ? (inp.value.trim() === "" ? null : Number(inp.value)) : inp.value;
-      inp.classList.toggle("missing", (k === "price" || k === "stock") && draft[i][k] == null);
-      checkDraft();
-    });
-    row.querySelector(".del").onclick = () => { draft.splice(i, 1); renderDraft(); };
-  });
-  checkDraft();
-}
-function checkDraft() {
-  const filled = draft.every(it => it.name && Number.isFinite(it.price) && it.price >= 0 && Number.isFinite(it.stock) && it.stock >= 0);
-  const ok = filled && (draft.length > 0 || mode === "miseban");
-  document.getElementById("ownerok").disabled = !ok;
-  document.getElementById("ownerok").textContent = draft.length === 0 ? "品なしで、それでええよ" : "それでええよ";
-}
-
-document.getElementById("ask").onclick = async () => {
-  const words = document.getElementById("words").value.trim();
-  if (!words) return;
-  const q = document.getElementById("nekoq");
-  q.textContent = "ふむふむ……";
-  try {
-    const r = await apiFetch("/api/shinafuda", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ words }) });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error);
-    draft = (j.items || []).map((it, i) => ({ id: "item" + Date.now() + i, ...it }));
-    const missing = draft.filter(it => it.price == null || it.stock == null).map(it =>
-      `${it.name}の${it.price == null && it.stock == null ? "値段と数" : it.price == null ? "値段" : "数"}`);
-    q.textContent = j.question
-      || (missing.length ? `${missing.join("、")}は、なんぼにする？ オレンジのとこさ入れでけれ。` : "")
-      || (draft.length ? "こんな札でどうだべ？ 数字だけ見でけれ。" : "わりな、品が見つけらんねがった。");
-    renderDraft();
-  } catch (e) {
-    q.textContent = "わりな、いま頭がつながらねみてぇだ。ちょっと待って、もう一回押してけれ。";
-  }
-};
-
-document.getElementById("ownerok").onclick = () => {
-  ITEMS = draft.map(it => ({ id: it.id, emoji: it.emoji || "🧺", name: it.name, unit: it.unit || "個", price: it.price, stock: it.stock }));
-  saveItems();
-  startStock = Object.fromEntries(ITEMS.map(it => [it.id, it.stock])); store("niwasaki_start", startStock);
-  for (const k in cart) delete cart[k];
-  render();
-  owner.classList.add("hidden");
-  updateOpenHint();
-  say(ITEMS.length ? "品札、並べだよ。<br>開店したら、ちゃんと店番するがらな。" : "今日は品札なしだな。<br>開店したら、ちゃんと迎えるがらな。", false);
-};
-
-// ---------- 🎤 話して伝える（iPad の音声認識。使えない端末ではボタンを出さない） ----------
-const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (Rec) {
-  const mic = document.getElementById("mic");
-  mic.hidden = false;
-  let rec = null;
-  mic.onclick = () => {
-    if (rec) { rec.stop(); return; }
-    rec = new Rec();
-    rec.lang = "ja-JP"; rec.interimResults = true; rec.continuous = false;
-    const words = document.getElementById("words");
-    const before = words.value ? words.value + "、" : "";
-    rec.onresult = (e) => { words.value = before + [...e.results].map(r => r[0].transcript).join(""); };
-    rec.onend = () => { rec = null; mic.classList.remove("listening"); mic.textContent = "🎤 話して伝える"; };
-    rec.onerror = rec.onend;
-    mic.classList.add("listening"); mic.textContent = "🎤 聞いでるよ…（押すと止まる）";
-    rec.start();
-  };
-}
-
-// ---------- お店の色 ----------
-function setTheme(t) {
-  if (t && t !== "kinari") document.body.dataset.theme = t; else delete document.body.dataset.theme;
-  document.querySelectorAll(".colors button").forEach(b => b.classList.toggle("on", b.dataset.theme === (t || "kinari")));
-  store("niwasaki_theme", t || "kinari");
-}
-document.querySelectorAll(".colors button").forEach(b => b.onclick = () => setTheme(b.dataset.theme));
-setTheme(load("niwasaki_theme", "kinari"));
-
-// ---------- 店じまい：日報と店番ノート ----------
-const closing = document.getElementById("closing");
-const yen = (n) => `${Number(n).toLocaleString("ja-JP")}円`;
-function tapTotal() { return sales.reduce((a, s) => a + s.total, 0); }
-function todayLabel() { return new Date().toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" }); }
-
-// 店番モードは、店主さんが数えた残りの数から売上を計算する（ふつうの足し算・AIは数えない）
-function countedSales() {
-  return ITEMS.map(it => {
-    const inp = document.querySelector(`.leftinput[data-id="${it.id}"]`);
-    const start = startStock[it.id] ?? it.stock;
-    const left = inp && inp.value.trim() !== "" ? Math.max(0, Math.min(start, Number(inp.value))) : start;
-    return { it, start, left, sold: start - left };
-  });
-}
-function calcTotal() {
-  return mode === "miseban" ? countedSales().reduce((a, r) => a + r.sold * r.it.price, 0) : tapTotal();
-}
-function updateCalc() {
-  const el = document.getElementById("calcyen");
-  if (el) el.textContent = yen(calcTotal());
-}
-document.getElementById("close").onclick = () => {
-  touch();
-  let rows;
-  if (mode === "miseban" && ITEMS.length === 0) {
-    document.getElementById("closesum").innerHTML = `<p>${todayLabel()}　来てけだ人（カメラの目安） ${visits}人</p><p>今日は品札なしだがら、箱のお金だけ入れでけれ。</p>`;
-  } else if (mode === "miseban") {
-    rows = ITEMS.map(it => `<tr><td>${esc(it.emoji)} ${esc(it.name)}</td><td class="n">朝 ${startStock[it.id] ?? it.stock}${esc(it.unit)}</td>
-      <td class="n">のこり <input class="leftinput" data-id="${it.id}" inputmode="numeric" placeholder="${startStock[it.id] ?? it.stock}">${esc(it.unit)}</td></tr>`).join("");
-    document.getElementById("closesum").innerHTML =
-      `<p>${todayLabel()}　来てけだ人（カメラの目安） ${visits}人</p><p>棚の残りを数えで入れでけれ。計算上の売上 <b id="calcyen">0円</b></p><table class="sumtable">${rows}</table>`;
-    document.querySelectorAll(".leftinput").forEach(i => i.oninput = updateCalc);
-  } else {
-    rows = ITEMS.map(it => {
-      const sold = sales.reduce((a, s) => a + (s.items.find(b => b.id === it.id)?.n || 0), 0);
-      return `<tr><td>${esc(it.emoji)} ${esc(it.name)}</td><td class="n">${sold}${esc(it.unit)} 売れた</td><td class="n">のこり ${it.stock}${esc(it.unit)}</td></tr>`;
-    }).join("");
-    document.getElementById("closesum").innerHTML =
-      `<p>${todayLabel()}　お客さん ${sales.length}回　タップの合計 <b>${yen(tapTotal())}</b></p><table class="sumtable">${rows}</table>`;
-  }
-  document.getElementById("nippo").textContent = "";
-  document.getElementById("notetext").textContent = note || "（まだ空っぽ。今日から書きはじめるよ）";
-  document.getElementById("afterbtns").style.display = "none";
-  document.getElementById("readrow").style.display = "none";
-  closing.classList.remove("hidden");
-};
-document.getElementById("closecancel").onclick = () => closing.classList.add("hidden");
-
-let lastNippo = "", nippoVoice = null;
-document.getElementById("readnippo").onclick = () => playVoice(nippoVoice, document.getElementById("nippo").textContent);
-document.getElementById("writenippo").onclick = async () => {
-  const box = document.getElementById("boxyen").value.trim();
-  const nippoEl = document.getElementById("nippo");
-  nippoEl.textContent = "日報、書いでるがら、ちょっと待ってけれ……";
-  try {
-    const r = await apiFetch("/api/nippo", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify((() => {
-        if (mode === "miseban") {
-          // 数えてもらった残りを棚の数に反映
-          countedSales().forEach(r => { r.it.stock = r.left; });
-          saveItems(); render();
-        }
-        return {
-          date: todayLabel(), mode, visits,
-          items: ITEMS.map(it => ({ ...it, startStock: startStock[it.id] ?? it.stock })),
-          sales, tapTotal: (mode === "miseban" && ITEMS.length === 0) ? null : mode === "miseban" ? ITEMS.reduce((a, it) => a + ((startStock[it.id] ?? it.stock) - it.stock) * it.price, 0) : tapTotal(),
-          boxTotal: box === "" ? null : Number(box), note,
-        };
-      })()),
-    });
-    const j = await r.json();
-    if (!r.ok || !j.nippo) throw new Error();
-    lastNippo = `【${todayLabel()}の店番日報】\n${j.nippo}\n\n計算上の売上：${yen(calcTotal())}${box !== "" ? `／箱のお金：${yen(box)}` : ""}`;
-    nippoEl.textContent = j.nippo;
-    note = j.note || note; store("niwasaki_note", note);
-    document.getElementById("notetext").textContent = note;
-    store("niwasaki_nippo_" + new Date().toISOString().slice(0, 10), { nippo: j.nippo, tapTotal: tapTotal(), box, sales });
-    document.getElementById("afterbtns").style.display = "flex";
-    // 声は欲しい時だけ。裏で先に作っておいて、押したらすぐ読む
-    const rb = document.getElementById("readnippo");
-    document.getElementById("readrow").style.display = "flex";
-    rb.disabled = true; rb.textContent = "🔊 声でも読んでもらう（準備中…）";
-    nippoVoice = null;
-    makeVoice(j.nippo).then(url => { nippoVoice = url; rb.disabled = false; rb.textContent = "🔊 声でも読んでもらう"; });
-  } catch (e) {
-    nippoEl.textContent = "わりな、いま頭がつながらねみてぇだ。ちょっと待って、もう一回押してけれ。";
-  }
-};
-
-document.getElementById("sharenippo").onclick = async () => {
-  try {
-    if (navigator.share) await navigator.share({ text: lastNippo });
-    else { await navigator.clipboard.writeText(lastNippo); alert("日報をコピーしたよ"); }
-  } catch (e) {}
-};
-document.getElementById("exportbtn").onclick = () => {
-  const data = { 書き出した日: new Date().toISOString(), 品: ITEMS, 売れた記録: sales, 店番ノート: note };
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-  a.download = `miseban_${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-};
-document.getElementById("newday").onclick = () => {
-  sales.length = 0; store("niwasaki_sales", sales);
-  visits = 0; store("niwasaki_visits", visits);
-  startStock = Object.fromEntries(ITEMS.map(it => [it.id, it.stock])); store("niwasaki_start", startStock);
-  closing.classList.add("hidden");
-  say("今日もおつかれさん。<br>また明日な。", false);
-  sleep();
-};
-
-render();
 </script>
 </body>
 </html>

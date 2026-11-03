@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@anthropic-ai/sdk": "latest",
-    "zod": "^4.1.0"
+    "@anthropic-ai/sdk": "latest"
   }
 }
