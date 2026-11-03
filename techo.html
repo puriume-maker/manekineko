@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f6f1e7">
+<title>お店の手帳</title>
+<style>
+  :root {
+    --bg: #f6f1e7;
+    --card: #fffdf8;
+    --ink: #3b3a36;
+    --sub: #746f63;
+    --leaf: #2f7a68;
+    --leaf-soft: #dcefe8;
+    --sun: #fbf0d3;
+    --line: #e6dfd0;
+    --warn: #a4532f;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 18px/1.7 "Hiragino Maru Gothic ProN", "Hiragino Sans", system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overflow-wrap: anywhere;
+  }
+  main { max-width: 640px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+  header { padding: 18px 16px 6px; }
+  h1 { margin: 0; font-size: 24px; letter-spacing: 0.08em; font-weight: 600; }
+
+  /* 今朝のひとこと */
+  .morning { margin: 8px 16px 4px; padding: 14px 16px; background: var(--sun); border-radius: 16px; }
+  .morning h2 { margin: 0 0 2px; font-size: 15px; font-weight: 600; color: var(--sub); }
+  .morning p { margin: 0; white-space: pre-wrap; }
+
+  /* 折りたたみ（記憶の棚・合言葉） */
+  details.fold { margin: 8px 16px 0; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+  details.fold > summary { padding: 12px 16px; min-height: 48px; cursor: pointer; font-size: 16px; color: var(--sub); }
+  .foldbody { padding: 0 16px 14px; }
+  .note { border-top: 1px solid var(--line); padding: 10px 0; }
+  .note h3 { margin: 0 0 4px; font-size: 15px; color: var(--leaf); font-weight: 600; }
+  .note pre { margin: 0; white-space: pre-wrap; font: inherit; font-size: 16px; }
+  .quiet { color: var(--sub); font-size: 16px; margin: 0; }
+  .code { display: flex; flex-direction: column; gap: 8px; }
+  .code input { font: inherit; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); width: 100%; }
+  .needcode { color: var(--warn); font-size: 16px; margin: 0; }
+
+  /* 会話 */
+  #talk { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 86%; padding: 11px 15px; border-radius: 18px; }
+  .msg.helper { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+  .msg.owner { align-self: flex-end; background: var(--leaf-soft); border-bottom-right-radius: 6px; }
+  .msg .body { white-space: pre-wrap; }
+  .msg time { display: block; font-size: 13px; color: var(--sub); margin-top: 3px; }
+  .msg img { display: block; width: 100%; max-width: 280px; border-radius: 12px; margin-bottom: 6px; }
+  .photochip { color: var(--sub); font-size: 16px; }
+  .hello, .notice { align-self: center; text-align: center; color: var(--sub); font-size: 16px; padding: 8px 12px; }
+  .notice { color: var(--warn); }
+  .thinking { align-self: flex-start; color: var(--sub); padding: 4px 6px; }
+  .thinking i { font-style: normal; animation: dot 1.4s infinite; }
+  .thinking i:nth-child(2) { animation-delay: 0.2s; }
+  .thinking i:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .thinking i { animation: none; } }
+
+  /* 入力 */
+  form {
+    position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .preview { position: relative; display: inline-block; margin-bottom: 8px; }
+  .preview img { display: block; height: 96px; border-radius: 10px; }
+  .preview button { position: absolute; top: -8px; right: -8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  textarea {
+    flex: 1; min-width: 0; font: inherit; resize: none; padding: 11px 13px; min-height: 50px; max-height: 40vh;
+    border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink);
+  }
+  textarea:focus, .code input:focus { outline: 2px solid var(--leaf); outline-offset: 0; }
+  .send { font: inherit; font-weight: 600; min-width: 68px; height: 50px; border: 0; border-radius: 14px; background: var(--leaf); color: #fff; cursor: pointer; }
+  .send:disabled { opacity: 0.45; cursor: default; }
+  .tools { display: flex; gap: 8px; margin-bottom: 8px; }
+  .pick { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; font-size: 16px; color: var(--leaf); background: var(--card); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+  .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .pick:focus-within { outline: 2px solid var(--leaf); }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>お店の手帳</h1></header>
+
+  <section class="morning" id="morning" hidden>
+    <h2>今朝のひとこと</h2>
+    <p id="morningtext"></p>
+  </section>
+
+  <details class="fold" id="shelf">
+    <summary>記憶の棚を見る</summary>
+    <div class="foldbody" id="shelfbody"><p class="quiet">開くと読み込みます。</p></div>
+  </details>
+
+  <details class="fold" id="codefold">
+    <summary>お店の合言葉</summary>
+    <div class="foldbody code">
+      <p class="needcode" id="needcode" hidden>合言葉を入れると、助手と話せます。</p>
+      <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
+    </div>
+  </details>
+
+  <section id="talk" aria-live="polite"></section>
+
+  <form id="form">
+    <div class="preview" id="preview" hidden>
+      <img id="previewimg" alt="送る写真">
+      <button type="button" id="previewoff" aria-label="写真をやめる">×</button>
+    </div>
+    <div class="tools">
+      <label class="pick">写真を撮る<input id="camera" type="file" accept="image/*" capture="environment"></label>
+      <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*"></label>
+    </div>
+    <div class="row">
+      <textarea id="text" rows="1" placeholder="庭のこと、なんでも" aria-label="助手に話す"></textarea>
+      <button class="send" id="send" type="submit">送る</button>
+    </div>
+  </form>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const POLL_MS = 2500;
+const GIVE_UP_MS = 5 * 60 * 1000;
+const MAX_SIDE = 1600;
+const MAX_BASE64 = 4_000_000; // Vercel の本文上限 4.5MB の内側に収める
+
+// ---------- 合言葉（index.html と同じ置き場所・同じヘッダ） ----------
+let shopCode = (() => { try { return localStorage.getItem("niwasaki_code") || ""; } catch (e) { return ""; } })();
+$("shopcode").value = shopCode;
+if (!shopCode) showCodeNeeded();
+
+function showCodeNeeded() {
+  $("codefold").open = true;
+  $("needcode").hidden = false;
+}
+
+let codeTimer;
+$("shopcode").oninput = (e) => {
+  shopCode = e.target.value.trim();
+  try { localStorage.setItem("niwasaki_code", shopCode); } catch (err) {}
+  $("needcode").hidden = true;
+  clearTimeout(codeTimer);
+  codeTimer = setTimeout(() => {
+    if (!shopCode) return;
+    if ($("shelf").open) loadShelf();
+    refresh();
+  }, 500);
+};
+
+async function api(query, opts = {}) {
+  const r = await fetch(`/api/techo?${query}`, { ...opts, headers: { ...(opts.headers || {}), "x-shop-code": shopCode } });
+  if (r.status === 403) {
+    $("needcode").textContent = "合言葉がちがうようです。店主さんの合言葉を入れてください。";
+    showCodeNeeded();
+    throw new Error("code");
+  }
+  if (!r.ok) throw new Error("http " + r.status);
+  return r.json();
+}
+
+// ---------- 会話を描く ----------
+let session = null;
+let shown = { messages: [], busy: false, paused: false, failed: false };
+let waitingFor = null;      // 送ったばかりで、まだ会話に現れていない発言
+let waitingText = null;     // 同じ発言の、画面に先に出しておく内容
+let waitStart = 0;
+let notice = "";
+const localPhotos = new Map(); // このページで送った写真（画面に出すだけ。開き直すと「写真」の印になる）
+
+function fmtTime(at) {
+  if (!at) return "";
+  return new Date(at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// 助手の文に混じる飾り（**太字** や # 見出し）を、文字のまま安全に整える
+function renderBody(el, text) {
+  const lines = text.split("\n").map((l) => l.replace(/^#{1,6}\s+/, "").replace(/^\s*[-*]\s+/, "・"));
+  lines.join("\n").split(/\*\*(.+?)\*\*/s).forEach((part, i) => {
+    if (i % 2) { const b = document.createElement("b"); b.textContent = part; el.append(b); }
+    else el.append(part);
+  });
+}
+
+function bubble(m) {
+  const box = document.createElement("div");
+  box.className = `msg ${m.who}`;
+  const local = m.localPhoto || localPhotos.get(m.id);
+  if (local) {
+    const img = document.createElement("img");
+    img.src = local; img.alt = "送った写真";
+    box.append(img);
+  } else if (m.photo) {
+    const chip = document.createElement("div");
+    chip.className = "photochip"; chip.textContent = "（写真を送りました）";
+    box.append(chip);
+  }
+  if (m.text) {
+    const body = document.createElement("div");
+    body.className = "body";
+    renderBody(body, m.text);
+    box.append(body);
+  }
+  if (m.at) {
+    const t = document.createElement("time");
+    t.textContent = fmtTime(m.at);
+    box.append(t);
+  }
+  return box;
+}
+
+function line(cls, text) {
+  const d = document.createElement("div");
+  d.className = cls; d.textContent = text;
+  return d;
+}
+
+function draw() {
+  const talk = $("talk");
+  const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200;
+  talk.replaceChildren();
+  const list = [...shown.messages];
+  if (waitingText) list.push(waitingText);
+  if (!list.length && !shown.busy) talk.append(line("hello", "庭のこと、今日あったこと、話してみてください。写真でも大丈夫です。"));
+  for (const m of list) talk.append(bubble(m));
+  if (isThinking()) {
+    const t = document.createElement("div");
+    t.className = "thinking";
+    t.innerHTML = "考え中<i>.</i><i>.</i><i>.</i>";
+    talk.append(t);
+  }
+  if (shown.paused) talk.append(line("notice", "この会話はここまでです。次に話しかけると、新しいページから続きます。覚えたことは棚に残っています。"));
+  if (shown.failed) talk.append(line("notice", "助手の調子が悪いようです。少し待って、もう一度話しかけてください。"));
+  if (notice) talk.append(line("notice", notice));
+  $("send").disabled = isThinking();
+  if (nearBottom) window.scrollTo(0, document.documentElement.scrollHeight);
+}
+
+function isThinking() { return Boolean(waitingFor) || shown.busy; }
+
+function drawMorning(m) {
+  $("morning").hidden = !m;
+  if (m) $("morningtext").textContent = m.text;
+}
+
+// ---------- 会話を取りに行く ----------
+let pollTimer = null;
+let pollSerial = 0;
+
+async function refresh(useSession) {
+  const serial = ++pollSerial;
+  clearTimeout(pollTimer);
+  if (!shopCode) { draw(); return; }
+  try {
+    const q = useSession && session ? `do=talk&session=${encodeURIComponent(session)}` : "do=talk";
+    const data = await api(q);
+    if (serial !== pollSerial) return; // もっと新しい取得に任せる
+    session = data.session;
+    shown = data;
+    if (waitingFor && data.messages.some((m) => m.id === waitingFor)) {
+      if (waitingText?.localPhoto) localPhotos.set(waitingFor, waitingText.localPhoto);
+      waitingFor = null;
+      waitingText = null;
+    }
+    if (notice && !waitingFor) notice = "";
+    drawMorning(data.morning);
+    draw();
+  } catch (e) {
+    if (serial !== pollSerial) return;
+    if (e.message === "code") { draw(); return; }
+    notice = "つながりにくいようです。電波のよいところで、もう一度開いてみてください。";
+    draw();
+  }
+  if (isThinking()) {
+    if (Date.now() - waitStart > GIVE_UP_MS) {
+      waitingFor = null; waitingText = null; shown.busy = false;
+      notice = "時間がかかっています。少し置いて開き直してみてください。";
+      draw();
+      return;
+    }
+    pollTimer = setTimeout(() => refresh(true), POLL_MS);
+  }
+}
+
+// ---------- 写真：ブラウザで縮めてから送る ----------
+let photoData = null; // base64（data: を除いたもの）
+
+async function shrink(file) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  let w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  for (;;) {
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+    for (const quality of [0.85, 0.7, 0.55]) {
+      const url = canvas.toDataURL("image/jpeg", quality);
+      if (url.length < MAX_BASE64) { bitmap.close(); return url; }
+    }
+    w = Math.round(w * 0.7); h = Math.round(h * 0.7); // それでも大きければ、さらに小さく
+  }
+}
+
+async function onPick(e) {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const url = await shrink(file);
+    photoData = url.slice(url.indexOf(",") + 1);
+    $("previewimg").src = url;
+    $("preview").hidden = false;
+  } catch (err) {
+    notice = "この写真は開けませんでした。別の写真で試してみてください。";
+    draw();
+  }
+}
+$("camera").onchange = onPick;
+$("album").onchange = onPick;
+
+function clearPhoto() {
+  photoData = null;
+  $("preview").hidden = true;
+  $("previewimg").removeAttribute("src");
+}
+$("previewoff").onclick = clearPhoto;
+
+// ---------- 送る ----------
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $("text").value.trim();
+  if ((!text && !photoData) || isThinking()) return;
+  if (!shopCode) { showCodeNeeded(); $("shopcode").focus(); return; }
+
+  const localPhoto = photoData ? $("previewimg").src : null;
+  const photo = photoData;
+  waitingText = { who: "owner", text, photo: Boolean(photo), localPhoto };
+  waitingFor = "sending";
+  waitStart = Date.now();
+  notice = "";
+  shown.paused = shown.failed = false;
+  $("text").value = "";
+  growText();
+  clearPhoto();
+  draw();
+  window.scrollTo(0, document.documentElement.scrollHeight);
+
+  try {
+    const sent = await api("do=say", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text, photo }),
+    });
+    session = sent.session;
+    waitingFor = sent.eventId || "sent";
+    if (sent.renewed) shown = { ...shown, messages: [], paused: false };
+    refresh(true);
+  } catch (err) {
+    // 届かなかった言葉は入力欄に戻す
+    waitingFor = null; waitingText = null;
+    $("text").value = text;
+    growText();
+    if (photo) { photoData = photo; $("previewimg").src = localPhoto; $("preview").hidden = false; }
+    if (err.message !== "code") notice = "送れませんでした。電波のよいところで、もう一度お願いします。";
+    draw();
+  }
+};
+
+function growText() {
+  const t = $("text");
+  t.style.height = "auto";
+  t.style.height = t.scrollHeight + 2 + "px";
+}
+$("text").oninput = growText;
+
+// ---------- 記憶の棚 ----------
+async function loadShelf() {
+  const body = $("shelfbody");
+  if (!shopCode) { body.innerHTML = '<p class="quiet">合言葉を入れると読めます。</p>'; return; }
+  body.innerHTML = '<p class="quiet">読み込み中です。</p>';
+  try {
+    const { notes } = await api("do=shelf");
+    body.replaceChildren();
+    if (!notes.length) { body.innerHTML = '<p class="quiet">まだ何も書かれていません。</p>'; return; }
+    for (const n of notes) {
+      const box = document.createElement("div");
+      box.className = "note";
+      const h = document.createElement("h3");
+      h.textContent = n.path.replace(/^\//, "");
+      const pre = document.createElement("pre");
+      pre.textContent = n.content;
+      box.append(h, pre);
+      body.append(box);
+    }
+  } catch (e) {
+    body.innerHTML = '<p class="quiet">読めませんでした。もう一度開いてみてください。</p>';
+  }
+}
+$("shelf").ontoggle = () => { if ($("shelf").open) loadShelf(); };
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !isThinking()) refresh();
+});
+
+draw();
+waitStart = Date.now();
+refresh().then(() => window.scrollTo(0, document.documentElement.scrollHeight));
+</script>
+</body>
+</html>
