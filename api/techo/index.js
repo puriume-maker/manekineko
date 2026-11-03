@@ -49,14 +49,16 @@ function startSession({ agent, environment, store }) {
 }
 
 async function currentSession(c) {
-  const page = await client.beta.sessions.list({
+  for await (const s of client.beta.sessions.list({
     agent_id: c.agent,
     memory_store_id: c.store, // 棚がつながっていない試しの会話は拾わない
     statuses: ["idle", "running", "rescheduling"],
     order: "desc",
-    limit: 1,
-  });
-  return page.data[0] || (await startSession(c));
+    limit: 10,
+  })) {
+    if (s.metadata?.kind !== "yume") return s; // 夢は店主と話す場所ではない
+  }
+  return startSession(c);
 }
 
 // 待たれている道具の確認に答える。店主には道具の話を聞かないので、確認が要るものは断り、

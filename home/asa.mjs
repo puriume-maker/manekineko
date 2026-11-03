@@ -1,6 +1,7 @@
-// 家のカメラ係：毎朝1回、家のMacで動く。庭を1枚撮って、福ちゃんの朝の会話を始める。
-//   node home/asa.mjs          きょうの分がまだなら動く
-//   node home/asa.mjs --force  きょうの分があっても、もう一度動く
+// 家のカメラ係：毎朝1回、家のMacで動く。福ちゃんが夢を見終えてから、庭を1枚撮って朝の会話を始める。
+//   node home/asa.mjs            きょうの分がまだなら動く
+//   node home/asa.mjs --force    きょうの分があっても、夢も朝ももう一度動く
+//   node home/asa.mjs --yume-only  夢だけ見る（確かめる時用）
 // 鍵は ~/.config/manekineko/.env、カメラは ~/.config/manekineko/camera.env から読む。
 // どちらの中身もログや画面に出さない。写真は ~/.local/share/manekineko/photos に置く（リポジトリには入らない）。
 import { spawn } from "node:child_process";
@@ -18,8 +19,11 @@ const UPLOADS = "/mnt/session/uploads";
 const BUDGET = { type: "limit", max_list_cost: { amount: "100", currency: "USD" } }; // 1会話1ドル
 const MAX_JPEG = 3_500_000; // 手帳で写真を返す時の上限（Vercel 4.5MB）の内側
 const DAY = 24 * 60 * 60 * 1000;
+const YUME_TIMEOUT = 5 * 60 * 1000;
+const YUME_POLL = 5000;
 
 const force = process.argv.includes("--force");
+const yumeOnly = process.argv.includes("--yume-only");
 const now = new Date();
 const dateOf = (d) => d.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }); // YYYY-MM-DD
 const today = dateOf(now);
@@ -115,10 +119,63 @@ function cue(todayFile, earlier) {
   return lines.join("\n");
 }
 
+const shelf = (ids) => ({
+  type: "memory_store",
+  memory_store_id: ids.store,
+  access: "read_write",
+  instructions: "庭の記憶の棚。始める前に読み、覚えることはここに書く。",
+});
+
+// 夢が終わるまで待つ。時間切れや確認待ちなら止めて先へ進む
+async function waitForDream(client, sessionId) {
+  const deadline = Date.now() + YUME_TIMEOUT;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, YUME_POLL));
+    let stop = null;
+    try {
+      const page = await client.beta.sessions.events.list(sessionId, { types: ["session.status_idle", "session.status_terminated"], order: "desc", limit: 1 });
+      const last = page.data[0];
+      if (last) stop = last.type === "session.status_terminated" ? "terminated" : last.stop_reason?.type;
+    } catch {
+      continue; // 通信の揺れは、時間切れまで待ち直す
+    }
+    if (stop === "requires_action") break;
+    if (stop) return stop;
+  }
+  await client.beta.sessions.events.send(sessionId, { events: [{ type: "user.interrupt" }] }).catch(() => {});
+  return "timeout";
+}
+
+// 夢を見る。何があっても朝は止めない
+async function dream(client, ids, index) {
+  try {
+    const session = await client.beta.sessions.create({
+      agent: ids.agent,
+      environment_id: ids.environment,
+      budget: BUDGET,
+      title: `夢 ${today}`,
+      metadata: { kind: "yume", date: today },
+      resources: [shelf(ids)],
+      initial_events: [{
+        type: "user.message",
+        content: [{ type: "text", text: `${fs.readFileSync(path.join(here, "../agent/yume.md"), "utf8").trim()}\n\nきょうは ${today} です。` }],
+      }],
+    });
+    index.dreams.push({ date: today, at: new Date().toISOString(), session: session.id });
+    writeIndex(index);
+    const stop = await waitForDream(client, session.id);
+    if (stop !== "end_turn") console.error(`夢が途中で終わりました: ${stop}`);
+    console.log(JSON.stringify({ yume: session.id, stop }));
+  } catch (e) {
+    console.error(`夢を見られませんでした: ${e.status ?? e.message}`);
+  }
+}
+
 async function main() {
   fs.mkdirSync(photoDir, { recursive: true, mode: 0o700 });
   const index = readIndex();
-  if (!force && index.shots.some((s) => s.date === today && s.session)) {
+  index.dreams ||= [];
+  if (!yumeOnly && !force && index.shots.some((s) => s.date === today && s.session)) {
     console.log(`${today} の朝はもう済んでいます（やり直すなら --force）`);
     return;
   }
@@ -127,6 +184,9 @@ async function main() {
   if (!apiKey) throw new Error("鍵が見つかりません");
   const client = new Anthropic({ apiKey });
   const ids = JSON.parse(fs.readFileSync(path.join(here, "../agent/ids.json"), "utf8"));
+
+  if (force || !index.dreams.some((d) => d.date === today)) await dream(client, ids, index);
+  if (yumeOnly) return;
 
   const bytes = await shoot();
   let fileId = null;
@@ -145,12 +205,7 @@ async function main() {
   writeIndex(index);
 
   const startSession = (withEarlier) => {
-    const resources = [{
-      type: "memory_store",
-      memory_store_id: ids.store,
-      access: "read_write",
-      instructions: "庭の記憶の棚。始める前に読み、覚えることはここに書く。",
-    }];
+    const resources = [shelf(ids)];
     if (fileId) resources.push({ type: "file", file_id: fileId, mount_path: `${UPLOADS}/kyou.jpg` });
     if (withEarlier) resources.push({ type: "file", file_id: withEarlier.file_id, mount_path: `${UPLOADS}/mae.jpg` });
 
