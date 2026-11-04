@@ -98,6 +98,7 @@
   }
   .asaword { margin: 0; font-size: 21px; line-height: 36px; white-space: pre-wrap; }
   .asadate { display: block; margin-top: 6px; font-size: 14px; color: var(--sub); }
+  #asathread:not(:empty) { margin-top: 10px; }
 
   /* 過去の朝 */
   .days { display: flex; gap: 8px; padding: 10px var(--pad) 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -120,15 +121,28 @@
   .code input { font: inherit; padding: 12px; border: 1px solid var(--field); border-radius: 4px; background: #fff; color: var(--ink); width: 100%; }
   .needcode { color: var(--warn); font-size: 16px; margin: 0; }
 
-  /* 日記：今日の欄と、積もっていくページ */
+  /* 記録：今日の欄と、積もっていくページ */
   .diaryhead { margin: 18px var(--pad) 8px; font-size: 20px; font-weight: 600; letter-spacing: 0.06em; }
-  #talk { padding: 4px var(--pad) 12px; display: flex; flex-direction: column; gap: 4px; }
+  #talk { padding: 4px var(--pad) 12px; }
+  #posts { display: flex; flex-direction: column; gap: 4px; }
   .entry { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-top: 2px dashed var(--line); }
   .entry > time { font-size: 14px; color: var(--sub); }
+  .post, .thread { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .aboutline { font-size: 14px; color: var(--sub); }
   .msg .body { white-space: pre-wrap; }
   .msg.owner img { display: block; width: 100%; margin-bottom: 8px; border: 6px solid var(--card); border-radius: 2px; box-shadow: 0 2px 7px rgba(60, 48, 20, 0.28); }
   .msg.helper { padding: 10px 13px; border-radius: 4px; background: var(--card); border-left: 4px solid var(--leaf); box-shadow: 0 1px 3px rgba(60, 48, 20, 0.22); }
   .msg.helper .who { display: block; font-size: 13px; color: var(--leaf); font-weight: 600; }
+  .msg.comment { font-size: 16px; line-height: 1.6; padding: 2px 0 2px 11px; border-left: 3px solid var(--field); }
+  /* 投稿の下の小さな返事欄 */
+  .reply { padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .reply .replyrow { display: flex; gap: 6px; align-items: flex-end; }
+  .reply textarea { min-height: 40px; padding: 7px 10px; font-size: 16px; line-height: 1.5; background: rgba(255, 255, 255, 0.75); }
+  .reply button { flex: none; min-width: 76px; height: 40px; padding: 0 8px; font: inherit; font-size: 15px; color: var(--leaf); background: var(--card); border: 1px solid var(--leaf); border-radius: 4px; cursor: pointer; }
+  .reply button:disabled { color: var(--sub); border-color: var(--line); cursor: default; }
+  .waithint { font-size: 14px; color: var(--sub); }
+  .reply .waithint { display: none; }
+  .reply.waiting:focus-within .waithint, .reply.waiting:has(textarea:not(:placeholder-shown)) .waithint { display: block; }
   .photochip { color: var(--sub); font-size: 16px; }
   .hello, .notice { align-self: stretch; color: var(--sub); font-size: 16px; padding: 8px 0 2px; }
   .more { display: block; margin: 0 var(--pad) 8px; min-height: 44px; padding: 0 14px; font: inherit; font-size: 16px; color: var(--leaf); background: var(--card); border: 1px dashed var(--leaf); border-radius: 4px; cursor: pointer; }
@@ -173,28 +187,33 @@
       <h2 id="asatitle">今朝の福ちゃん</h2>
       <p class="asaword" id="asaword"></p>
       <time class="asadate" id="asadate" hidden></time>
+      <div id="asathread"></div>
     </div>
   </section>
 
   <nav class="days" id="days" aria-label="これまでのカメラの写真" hidden></nav>
 
-  <h2 class="diaryhead">今日の日記</h2>
+  <h2 class="diaryhead">今日の記録</h2>
   <form id="form">
     <div class="preview" id="preview" hidden>
       <img id="previewimg" alt="送る写真">
       <button type="button" id="previewoff" aria-label="写真をやめる">×</button>
     </div>
     <div class="row">
-      <textarea id="text" rows="3" placeholder="今日作ったもの、気づいたこと。写真だけでも、聞きたいことでも" aria-label="今日の日記"></textarea>
+      <textarea id="text" rows="3" placeholder="写真と一言。今日あったこと、なんでも" aria-label="今日の記録"></textarea>
       <button class="send" id="send" type="submit">書く</button>
     </div>
     <div class="tools" style="margin: 8px 0 0">
       <label class="pick">写真を撮る<input id="camera" type="file" accept="image/*" capture="environment"></label>
       <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*"></label>
     </div>
+    <div class="waithint" id="sendhint" hidden>福ちゃんが考え中です。終わると書けます。</div>
   </form>
 
-  <section id="talk" aria-live="polite"></section>
+  <section id="talk" aria-live="polite">
+    <div id="talknotes"></div>
+    <div id="posts"></div>
+  </section>
   <button class="more" id="more" type="button" hidden>もっと前を見る</button>
 
   <div id="bottom">
@@ -332,7 +351,7 @@ function drawDays() {
       none.textContent = "写真なし";
       b.append(none, when);
     }
-    b.onclick = () => { chosen = m.date; drawCard(); drawDays(); };
+    b.onclick = () => { chosen = m.date; drawCard(); drawDays(); draw(); };
     box.append(b);
   }
 }
@@ -346,7 +365,7 @@ async function loadMornings() {
     if (!mornings.some((m) => m.date === chosen)) chosen = mornings[0]?.date ?? null;
     drawCard();
     drawDays();
-    draw(); // 朝のひとことは一番上に出すので、日記の側には重ねない
+    draw(); // 朝のひとことは一番上に出すので、投稿の列には重ねない
     if (mornings.some((m) => m.looking)) morningTimer = setTimeout(loadMornings, 5000);
   } catch (e) {
     if (e.message !== "code") { notice = "つながりにくいようです。少し置いて開き直してみてください。"; draw(); }
@@ -355,9 +374,9 @@ async function loadMornings() {
 
 // ---------- 会話を描く ----------
 let session = null;
-let shown = { messages: [], morning: null, busy: false, paused: false, failed: false };
+let shown = { messages: [], morning: null, thread: null, busy: false, paused: false, failed: false };
 let waitingFor = null;      // 送ったばかりで、まだ会話に現れていない発言
-let waitingText = null;     // 同じ発言の、画面に先に出しておく内容
+let waitingText = null;     // 同じ発言の、画面に先に出しておく内容（返事なら post にその投稿の番号）
 let waitStart = 0;
 let notice = "";
 let archive = [];           // 今の会話より前の会話（古い順）
@@ -386,7 +405,7 @@ const photoWatcher = "IntersectionObserver" in window ? new IntersectionObserver
 
 function diaryPhoto(m) {
   const img = document.createElement("img");
-  img.alt = "日記の写真";
+  img.alt = "記録の写真";
   img.loadPhoto = () => fetchPhoto(`session=${encodeURIComponent(m.session)}&event=${encodeURIComponent(m.id)}`)
     .then((url) => { img.src = url; })
     .catch((e) => { // 前の作りの写真は読み返せない
@@ -400,7 +419,7 @@ function diaryPhoto(m) {
 
 function bubble(m) {
   const box = document.createElement("div");
-  box.className = `msg ${m.who}`;
+  box.className = `msg ${m.who}${m.comment ? " comment" : ""}`;
   if (m.who === "helper") {
     const who = document.createElement("span");
     who.className = "who"; who.textContent = "福ちゃん";
@@ -409,7 +428,7 @@ function bubble(m) {
   const local = m.localPhoto || localPhotos.get(m.id);
   if (local) {
     const img = document.createElement("img");
-    img.src = local; img.alt = "日記の写真";
+    img.src = local; img.alt = "記録の写真";
     box.append(img);
   } else if (m.photo) {
     box.append(diaryPhoto(m));
@@ -429,56 +448,188 @@ function line(cls, text) {
   return d;
 }
 
-// 一つの会話を、順番どおりの発言の列にする。朝のひとこと（今朝の分は一番上に出ているので除く）も過去の分は日記に残す
-function itemsOf(part) {
+// ---------- 投稿：記録（または福ちゃんの言葉）一つと、そのあとに続くやり取り ----------
+// 会話の記録を古い順に読み、発言についた post の番号で投稿ごとに束ねる。新しい投稿が上。返事を足しても投稿の順は動かない。
+// 頭が読み込めていない投稿（古すぎる投稿への返事）は orphan になり、頭が読み込まれた時に元の場所へ戻る
+function allPosts() {
+  const byId = new Map();
   const list = [];
-  const word = part.morning;
-  if (word && word.text !== shownMorning()?.word) list.push({ ...word, who: "helper", session: part.session, opens: true });
-  for (const m of part.messages) list.push({ ...m, session: part.session });
+  const postOf = (id) => {
+    if (!byId.has(id)) { const p = { id, head: null, items: [] }; byId.set(id, p); list.push(p); }
+    return byId.get(id);
+  };
+  const add = (m) => {
+    const p = postOf(m.post);
+    if (m.id === m.post) p.head = m;
+    else p.items.push(m);
+    if (m.comment && !p.about) p.about = m.about;
+  };
+  for (const part of [...archive, { session, messages: shown.messages, morning: shown.morning }]) {
+    if (part.morning) add({ ...part.morning, post: part.morning.id, who: "helper", session: part.session });
+    for (const m of part.messages) add({ ...m, session: part.session });
+  }
+  if (waitingText) add({ ...waitingText, post: waitingText.post || "sending", id: "sending" });
   return list;
 }
 
-// 日記と、そのあとの福ちゃんの返事を一まとまりに。新しいまとまりが上
-function groups() {
-  const list = [...archive.flatMap(itemsOf), ...itemsOf({ session, messages: shown.messages, morning: shown.morning })];
-  if (waitingText) list.push(waitingText);
-  const out = [];
-  for (const m of list) {
-    if (m.who === "owner" || m.opens || !out.length) out.push([m]);
-    else out.at(-1).push(m);
+// 福ちゃんにどの話への返事かを伝える文。投稿の頭と、そのやり取りの最後の言葉
+function aboutOf(post) {
+  const cut = (t) => { const c = (t || "").replace(/\s+/g, " ").trim(); return c.length > 40 ? c.slice(0, 40) + "…" : c; };
+  const head = post.head;
+  if (!head) return post.about || "前の投稿";
+  const when = head.at ? new Date(head.at).toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", month: "long", day: "numeric" }) : "";
+  let about = head.who === "owner"
+    ? `${when}の記録「${cut(head.text) || "写真だけ"}」`
+    : `${when}の福ちゃんの言葉「${cut(head.text)}」`;
+  const last = post.items.at(-1);
+  if (last) about += `の、${last.who === "owner" ? "店主" : "福ちゃん"}の言葉「${cut(last.text)}」`;
+  return about;
+}
+
+const boxes = new Map(); // 投稿の番号 → 画面の部品。入力中の返事が消えないよう、作り直さず持ち続ける
+
+function makeBox(id) {
+  const root = document.createElement("div");
+  root.className = "post";
+  const thread = document.createElement("div");
+  thread.className = "thread";
+  const form = document.createElement("form");
+  form.className = "reply";
+  const row = document.createElement("div");
+  row.className = "replyrow";
+  const input = document.createElement("textarea");
+  input.rows = 1;
+  input.placeholder = "返事を書く";
+  input.setAttribute("aria-label", "この投稿に返事を書く");
+  input.oninput = () => growBox(input);
+  const button = document.createElement("button");
+  button.type = "submit";
+  const hint = line("waithint", "福ちゃんが考え中です。終わると送れます。");
+  row.append(input, button);
+  form.append(row, hint);
+  root.append(thread, form);
+  const box = { id, root, thread, form, input, button, sig: null, post: null };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || isThinking()) return;
+    input.value = "";
+    growBox(input);
+    sendWords({ text, reply: { post: id, about: aboutOf(box.post) }, restore: () => { input.value = text; growBox(input); } });
+  };
+  boxes.set(id, box);
+  return box;
+}
+
+function thinkingDots() {
+  const t = document.createElement("div");
+  t.className = "thinking";
+  t.innerHTML = "考え中<i>.</i><i>.</i><i>.</i>";
+  return t;
+}
+
+// どの投稿の下で考えているか。投稿がまだ無ければ null
+function thinkingPost() {
+  if (waitingText) return waitingText.post || "sending";
+  return shown.busy ? shown.thread : null;
+}
+
+// 変わった投稿の中だけ描き直す（入力欄とカーソルはそのまま）。inCard は今朝の欄に出ている投稿で、頭はそちらにある
+function drawPost(post, inCard) {
+  const box = boxes.get(post.id) || makeBox(post.id);
+  box.post = post;
+  const thinkingHere = isThinking() && thinkingPost() === post.id;
+  const shownHead = inCard ? null : post.head;
+  const sig = JSON.stringify([inCard, thinkingHere, shownHead?.id, shownHead?.text, !post.head && post.about, post.items.map((m) => [m.id, m.text])]);
+  if (sig !== box.sig) {
+    box.sig = sig;
+    const parts = [];
+    if (!inCard && !post.head && post.about) parts.push(line("aboutline", `${post.about}への返事`));
+    if (shownHead) parts.push(bubble(shownHead));
+    for (const m of post.items) parts.push(bubble(m));
+    if (thinkingHere) parts.push(thinkingDots());
+    box.thread.replaceChildren(...parts);
   }
-  return out.reverse();
+  box.form.hidden = post.id === "sending"; // 届く前の投稿にはまだ返事を書けない
+  return box;
+}
+
+// 送信待ちの時は、どの欄のボタンも止める。頭は一つなので
+function drawButtons() {
+  const wait = isThinking();
+  for (const box of boxes.values()) {
+    box.button.disabled = wait;
+    box.button.textContent = wait ? "待ってね" : "送る";
+    box.form.classList.toggle("waiting", wait);
+  }
+  $("send").disabled = wait;
+  $("sendhint").hidden = !wait;
+}
+
+// 今朝の欄に出ている投稿。列からは外して、返事ごと今朝の欄の下に出す
+function cardPost(posts) {
+  const m = shownMorning();
+  if (!m?.id) return null;
+  return posts.find((p) => p.id === m.id)
+    || { id: m.id, head: { id: m.id, post: m.id, who: "helper", text: m.word, at: m.at }, items: [] };
+}
+
+function drawCardThread(posts) {
+  const place = $("asathread");
+  const card = cardPost(posts);
+  if (!card) { place.replaceChildren(); return null; }
+  if (!card.head) card.head = { id: card.id, post: card.id, who: "helper", text: shownMorning().word, at: shownMorning().at };
+  const box = drawPost(card, true);
+  if (place.firstChild !== box.root) place.replaceChildren(box.root);
+  return card;
+}
+
+function drawPosts(posts, card) {
+  const place = $("posts");
+  const wanted = [];
+  for (const post of posts.slice().reverse()) {
+    if (post === card || post.id === card?.id) continue;
+    const box = drawPost(post, false);
+    let entry = box.entry;
+    if (!entry) {
+      entry = box.entry = document.createElement("article");
+      entry.className = "entry";
+      entry.append(box.root);
+    }
+    const at = post.head?.at ?? post.items[0]?.at;
+    let t = entry.querySelector(":scope > time");
+    if (at) {
+      if (!t) { t = document.createElement("time"); entry.prepend(t); }
+      t.textContent = fmtTime(at);
+    } else if (t) t.remove();
+    if (box.root.parentNode !== entry) entry.append(box.root); // 今朝の欄から列へ戻る時
+    wanted.push(entry);
+  }
+  // 順番が違うものだけ動かす（動かすと入力中の文字欄からカーソルが外れるので）
+  for (const child of [...place.children]) if (!wanted.includes(child)) child.remove();
+  let before = place.firstChild;
+  for (const entry of wanted) {
+    if (entry === before) before = before.nextSibling;
+    else place.insertBefore(entry, before);
+  }
+  if (!posts.some((p) => p.id === "sending")) boxes.delete("sending"); // 次の投稿に前の写真が残らないように
 }
 
 function draw() {
-  const talk = $("talk");
-  talk.replaceChildren();
-  if (notice) talk.append(line("notice", notice));
-  if (shown.paused) talk.append(line("notice", "この会話はここまでです。次に書くと、新しいページから続きます。覚えたことはノートに残っています。"));
-  if (shown.failed) talk.append(line("notice", "福ちゃんの調子が悪いようです。少し待って、もう一度書いてください。"));
-  const all = groups();
-  if (!all.length && !shown.busy) talk.append(line("hello", "ここに日記と福ちゃんの返事が積もっていきます。写真だけ、一言だけでも大丈夫です。"));
-  const thinking = () => {
-    const t = document.createElement("div");
-    t.className = "thinking";
-    t.innerHTML = "考え中<i>.</i><i>.</i><i>.</i>";
-    return t;
-  };
-  if (isThinking() && !all.length) talk.append(thinking());
-  all.forEach((group, i) => {
-    const entry = document.createElement("article");
-    entry.className = "entry";
-    if (group[0].at) {
-      const t = document.createElement("time");
-      t.textContent = fmtTime(group[0].at);
-      entry.append(t);
-    }
-    for (const m of group) entry.append(bubble(m));
-    if (i === 0 && isThinking()) entry.append(thinking());
-    talk.append(entry);
-  });
+  const notes = $("talknotes");
+  notes.replaceChildren();
+  if (notice) notes.append(line("notice", notice));
+  if (shown.paused) notes.append(line("notice", "この会話はここまでです。次に書くと、新しいページから続きます。覚えたことはノートに残っています。"));
+  if (shown.failed) notes.append(line("notice", "福ちゃんの調子が悪いようです。少し待って、もう一度書いてください。"));
+  const posts = allPosts();
+  if (!posts.length && !shown.busy && !shownMorning()) notes.append(line("hello", "ここに記録と福ちゃんの返事が積もっていきます。写真だけ、一言だけでも大丈夫です。"));
+  const card = drawCardThread(posts);
+  drawPosts(posts, card);
+  // 投稿が決まらないまま考えている時（朝のしたくなど）は、列の頭に出す
+  const where = thinkingPost();
+  if (isThinking() && (where === null || (!posts.some((p) => p.id === where) && where !== card?.id))) notes.append(thinkingDots());
   $("more").hidden = nextPage === null;
-  $("send").disabled = isThinking();
+  drawButtons();
 }
 
 function isThinking() { return Boolean(waitingFor) || shown.busy; }
@@ -522,9 +673,15 @@ async function refresh(useSession) {
   }
 }
 
-// ---------- 前の会話の日記 ----------
-async function loadDiary(skip = 0) {
+// ---------- 前の会話の記録 ----------
+// 頭が読めていない投稿（古い投稿への返事）があれば、数ページまで自分で遡って元の場所に戻す
+const MAX_AUTO_PAGES = 5;
+let autoPages = 0;
+const hasOrphan = () => allPosts().some((p) => !p.head && p.id !== "sending" && p.id !== shownMorning()?.id);
+
+async function loadDiary(skip = 0, auto = false) {
   const asked = archiveFor = session;
+  if (!auto) autoPages = 0;
   try {
     const data = await api(`do=diary&except=${encodeURIComponent(asked)}&skip=${skip}`);
     if (asked !== session) return;
@@ -532,6 +689,7 @@ async function loadDiary(skip = 0) {
     archive = skip ? [...older, ...archive] : older;
     nextPage = data.next;
     draw();
+    if (nextPage !== null && hasOrphan() && autoPages < MAX_AUTO_PAGES) { autoPages++; loadDiary(nextPage, true); }
   } catch (e) {
     if (e.message !== "code" && !skip) archiveFor = null; // 次に開いた時にもう一度
   }
@@ -582,51 +740,58 @@ function clearPhoto() {
 $("previewoff").onclick = clearPhoto;
 
 // ---------- 送る ----------
-$("form").onsubmit = async (e) => {
-  e.preventDefault();
-  const text = $("text").value.trim();
-  if ((!text && !photoData) || isThinking()) return;
-  if (!shopCode) { showCodeNeeded(); $("shopcode").focus(); return; }
-
-  const localPhoto = photoData ? $("previewimg").src : null;
-  const photo = photoData;
-  waitingText = { who: "owner", text, photo: Boolean(photo), localPhoto };
+// 上の欄の記録も、投稿の下の返事も同じ道を通る。restore は届かなかった時に入力欄へ戻す
+async function sendWords({ text, photo = null, localPhoto = null, reply = null, restore }) {
+  waitingText = { who: "owner", text, photo: Boolean(photo), localPhoto, ...(reply ? { post: reply.post, comment: true, about: reply.about } : {}) };
   waitingFor = "sending";
   waitStart = Date.now();
   notice = "";
   shown.paused = shown.failed = false;
-  $("text").value = "";
-  growText();
-  clearPhoto();
   draw();
-  $("form").scrollIntoView({ block: "start" }); // 書いた日記はこのすぐ下に出る
-
   try {
     const sent = await api("do=say", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text, photo }),
+      body: JSON.stringify({ text, photo, reply }),
     });
     session = sent.session;
     waitingFor = sent.eventId || "sent";
     if (sent.renewed) shown = { ...shown, messages: [], morning: null, paused: false };
     refresh(true);
   } catch (err) {
-    // 届かなかった言葉は入力欄に戻す
     waitingFor = null; waitingText = null;
-    $("text").value = text;
-    growText();
-    if (photo) { photoData = photo; $("previewimg").src = localPhoto; $("preview").hidden = false; }
+    restore();
     if (err.message !== "code") notice = "送れませんでした。電波のよいところで、もう一度お願いします。";
     draw();
   }
+}
+
+$("form").onsubmit = (e) => {
+  e.preventDefault();
+  const text = $("text").value.trim();
+  if ((!text && !photoData) || isThinking()) return;
+  if (!shopCode) { showCodeNeeded(); $("shopcode").focus(); return; }
+  const localPhoto = photoData ? $("previewimg").src : null;
+  const photo = photoData;
+  $("text").value = "";
+  growText();
+  clearPhoto();
+  sendWords({
+    text, photo, localPhoto,
+    restore: () => {
+      $("text").value = text;
+      growText();
+      if (photo) { photoData = photo; $("previewimg").src = localPhoto; $("preview").hidden = false; }
+    },
+  });
+  $("form").scrollIntoView({ block: "start" }); // 書いた記録はこのすぐ下に出る
 };
 
-function growText() {
-  const t = $("text");
+function growBox(t) {
   t.style.height = "auto";
   t.style.height = t.scrollHeight + 2 + "px";
 }
+function growText() { growBox($("text")); }
 $("text").oninput = growText;
 
 // ---------- 記憶の棚 ----------

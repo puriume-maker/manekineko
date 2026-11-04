@@ -1,6 +1,6 @@
 // お店の手帳の裏側：助手（Managed Agents）との今の会話、写メ、記憶の棚。
 //   GET  /api/techo?do=talk[&session=sesn_…]  今の会話（なければ新しく始める）
-//   POST /api/techo?do=say   {text, photo}    発言を送る（photo は JPEG の base64）
+//   POST /api/techo?do=say   {text, photo, reply}  発言を送る（photo は JPEG の base64。reply は {post, about}：どの投稿への返事か）
 //   GET  /api/techo?do=diary[&except=sesn_…&skip=N]  今の会話より前の日記と返事（新しい会話から順に数回分）
 //   GET  /api/techo?do=shelf                  記憶の棚の中身
 //   GET  /api/techo?do=mornings               朝の一覧（最近7日、写真の番号とひとこと）
@@ -16,12 +16,15 @@ const DATE_MARK = "【今日】"; // 今日の日付を助手に伝える文。�
 const PHOTO_MARK = "【写真】"; // 写真が届いたことを助手に伝える文。画面には文章として出さない
 const BACKSTAGE_MARK = "【裏方】"; // 朝の起動など、店主の発言ではない合図。画面に出さない
 const PHOTO_ONLY_MARK = "【写真だけ】"; // カメラの係が朝の後から写真だけ渡す合図。これへの返答も画面に出さない
+const REPLY_MARK = "【返事先:"; // どの投稿への返事かを助手に伝える文。保存場所は作らず、画面はこの印で投稿ごとにまとめる。文面は出さない
+const REPLY_END = "への返事です。";
 const FIRST_DAY_CUE = `${BACKSTAGE_MARK}店主がはじめて手帳を開きました。棚は空です。短いあいさつのあとで、初日の聞き取りの最初の一つだけを聞いてください。店主に見せる言葉は日本語で、作業の話はしないでください。`;
 const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md"]); // 福ちゃんと猫が書くもの。これだけなら棚はまだ空とみなす
 const DIARY_SESSIONS = 10; // 一度に読む過去の会話の数
 const DIARY_SCAN = 200;
 const MAX_PHOTO_BASE64 = 4_200_000; // Vercel の本文上限 4.5MB の内側
 const MAX_TEXT = 8000;
+const MAX_ABOUT = 240;
 const MAX_MORNINGS = 7;
 const MORNING_SCAN = 200; // 朝を探して見る会話の数の上限
 const MISE_PATH = "/mise.json";
@@ -107,9 +110,20 @@ async function settlePending(sessionId, events) {
   if (replies.length) await client.beta.sessions.events.send(sessionId, { events: replies }).catch((e) => console.error("settle", e.status));
 }
 
-// 出来事の列を、画面に出す会話へまとめる
+// 「【返事先:番号】説明への返事です。」を番号と説明に分ける
+function readReplyMark(texts) {
+  const t = texts.find((x) => x.startsWith(REPLY_MARK));
+  const m = t && /^【返事先:([\w-]+)】([\s\S]*)$/.exec(t);
+  if (!m) return null;
+  return { post: m[1], about: m[2].endsWith(REPLY_END) ? m[2].slice(0, -REPLY_END.length) : m[2] };
+}
+
+// 出来事の列を、画面に出す会話へまとめる。
+// 発言にはそれぞれ post（属する投稿の番号）を付ける。印のない店主の発言はそれ自体が新しい投稿で、
+// 福ちゃんの言葉は直前の店主の発言と同じ投稿に入る（裏方の促しのあとの返事も、促しの前の発言の投稿に入る）
 function readTalk(events) {
   const messages = [];
+  let thread = null;
   let morning = null;
   let ownerSpoke = false;
   let busy = false;
@@ -124,18 +138,24 @@ function readTalk(events) {
       silent = texts.some((t) => t.startsWith(BACKSTAGE_MARK + PHOTO_ONLY_MARK));
       if (texts.some((t) => t.startsWith(BACKSTAGE_MARK) || t.startsWith("【朝の定時起動"))) continue; // 後ろは印を付ける前の朝の合図
       ownerSpoke = true;
+      const reply = readReplyMark(texts);
+      thread = reply ? reply.post : e.id;
       messages.push({
         id: e.id,
         who: "owner",
-        text: texts.filter((t) => !t.startsWith(PHOTO_MARK) && !t.startsWith(DATE_MARK)).join("\n"),
+        post: thread,
+        ...(reply ? { comment: true, about: reply.about } : {}),
+        text: texts.filter((t) => !t.startsWith(PHOTO_MARK) && !t.startsWith(DATE_MARK) && !t.startsWith(REPLY_MARK)).join("\n"),
         photo: texts.some((t) => t.startsWith(PHOTO_MARK)),
         at: e.processed_at,
       });
     } else if (e.type === "agent.message") {
       const text = e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
       if (!text || silent) continue;
-      if (!ownerSpoke && !morning) morning = { id: e.id, text, at: e.processed_at };
-      else messages.push({ id: e.id, who: "helper", text, at: e.processed_at });
+      if (!ownerSpoke && !morning) {
+        morning = { id: e.id, text, at: e.processed_at };
+        thread = e.id;
+      } else messages.push({ id: e.id, who: "helper", post: thread, text, at: e.processed_at });
     } else if (e.type === "session.status_idle") {
       const stop = e.stop_reason?.type;
       if (stop === "requires_action") continue;
@@ -147,7 +167,7 @@ function readTalk(events) {
       failed = true;
     }
   }
-  return { messages, morning, busy, paused, failed };
+  return { messages, morning, thread, busy, paused, failed };
 }
 
 async function talk(req, res) {
@@ -188,6 +208,10 @@ async function say(req, res) {
   const photo = typeof req.body?.photo === "string" ? req.body.photo : "";
   if (!text && !photo) return res.status(400).json({ error: "empty" });
   if (photo.length > MAX_PHOTO_BASE64) return res.status(413).json({ error: "photo too large" });
+  const replyPost = req.body?.reply ? String(req.body.reply.post || "") : "";
+  if (req.body?.reply && !/^[\w-]{1,100}$/.test(replyPost)) return res.status(400).json({ error: "bad reply" });
+  // 説明は画面から届く文なので、印のかっこと改行を落としてから助手に渡す
+  const about = String(req.body?.reply?.about || "この投稿").replace(/[【】\p{Cc}]/gu, " ").trim().slice(0, MAX_ABOUT);
 
   if (photo) {
     const bytes = Buffer.from(photo, "base64");
@@ -203,6 +227,7 @@ async function say(req, res) {
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: photo } });
       content.push({ type: "text", text: `${PHOTO_MARK}店主から写真が届きました。添えてある写真を見てください。` });
     }
+    if (replyPost) content.push({ type: "text", text: `${REPLY_MARK}${replyPost}】${about}${REPLY_END}` });
     if (text) content.push({ type: "text", text });
     const sent = await client.beta.sessions.events.send(sessionId, { events: [{ type: "user.message", content }] });
     return { session: sessionId, eventId: sent.data?.[0]?.id ?? null };
@@ -268,19 +293,24 @@ async function firstWord(sessionId) {
   const page = await client.beta.sessions.events.list(sessionId, { types: ["agent.message"], limit: 5 });
   for (const e of page.data) {
     const text = e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
-    if (text) return text;
+    if (text) return { id: e.id, text, at: e.processed_at };
   }
   return null;
 }
 
 async function mornings(req, res) {
   const sessions = await morningSessions();
-  const list = await Promise.all(sessions.map(async (s) => ({
-    date: dateOf(s),
-    fileId: s.metadata?.photo_file_id || null,
-    word: await firstWord(s.id),
-    looking: s.status === "running" || s.status === "rescheduling",
-  })));
+  const list = await Promise.all(sessions.map(async (s) => {
+    const first = await firstWord(s.id);
+    return {
+      date: dateOf(s),
+      fileId: s.metadata?.photo_file_id || null,
+      id: first?.id ?? null, // 朝の一言も一つの投稿。返事はこの番号へ
+      at: first?.at ?? null,
+      word: first?.text ?? null,
+      looking: s.status === "running" || s.status === "rescheduling",
+    };
+  }));
   return res.status(200).json({ mornings: list });
 }
 
