@@ -277,7 +277,9 @@ let lastLine = "";
 function pickLine(kind) {
   const list = linesOf(kind);
   const others = list.filter((t) => t !== lastLine);
-  const from = others.length ? others : list;
+  const pool = others.length ? others : list;
+  const ready = pool.filter((t) => voices.get(t)); // 声ができている言葉を先に使う
+  const from = ready.length ? ready : pool;
   lastLine = from[Math.floor(Math.random() * from.length)];
   return lastLine;
 }
@@ -289,49 +291,39 @@ const setTalking = (on) => $("cat").classList.toggle("talking", on);
 player.addEventListener("play", () => setTalking(true));
 ["ended", "pause", "error"].forEach((ev) => player.addEventListener(ev, () => setTalking(false)));
 
-let voice = null;
-function pickVoice() {
-  const vs = speechSynthesis.getVoices().filter((v) => v.lang && v.lang.startsWith("ja"));
-  voice = vs.find((v) => /Google/.test(v.name)) || vs.find((v) => /(拡張|Enhanced|Premium)/.test(v.name))
-       || vs.find((v) => /Kyoko|O-ren|Hattori/.test(v.name)) || vs[0] || null;
-}
-if ("speechSynthesis" in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function speakFallback(text) {
-  if (!("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "ja-JP"; if (voice) u.voice = voice;
-  u.rate = 1.0; u.pitch = 1.15;
-  u.onstart = () => setTalking(true);
-  u.onend = u.onerror = () => setTalking(false);
-  speechSynthesis.speak(u);
-}
-
 const voices = new Map(); // セリフ → 作った声のURL（作れなければ null）
 let preparing = false;
 async function prepareVoices() {
   if (preparing) return;
   preparing = true;
+  const store = "caches" in window ? await caches.open("niwasaki-koe").catch(() => null) : null; // 一度作った声は開き直しても使う
   const wanted = [...linesOf("greet"), ...(mise.lines.chat || []), ...linesOf("bye"), ...FIXED.greet, ...FIXED.bye];
   for (const text of wanted) {
     if (voices.get(text)) continue;
     try {
-      const r = await apiFetch("/api/koe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-      voices.set(text, r.status === 200 ? URL.createObjectURL(await r.blob()) : null);
+      const key = `/koe-cache/${encodeURIComponent(text)}`;
+      let hit = store && (await store.match(key));
+      if (!hit) {
+        const r = await apiFetch("/api/koe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+        if (r.status !== 200) { voices.set(text, null); continue; }
+        hit = r;
+        if (store) await store.put(key, r.clone()).catch(() => {});
+      }
+      voices.set(text, URL.createObjectURL(await hit.blob()));
     } catch (e) { voices.set(text, null); }
   }
   preparing = false;
+  if (wanted.some((t) => !voices.get(t))) setTimeout(prepareVoices, 30000); // できなかった声は、あとでもう一度
 }
 
 function say(text) {
   $("bubble").textContent = text;
   $("bubble").classList.remove("pop"); void $("bubble").offsetWidth; $("bubble").classList.add("pop");
-  if ("speechSynthesis" in window) speechSynthesis.cancel();
   player.pause();
   const url = voices.get(text);
-  if (!url) { speakFallback(text); return; }
+  if (!url) return; // 声ができていない言葉は吹き出しだけ。別の声には替えない
   player.src = url;
-  player.play().catch(() => speakFallback(text));
+  player.play().catch((e) => console.warn("koe", e));
 }
 
 function catMove(...names) {
@@ -489,7 +481,6 @@ $("openbtn").onclick = async () => {
   // iPad は最初のタッチの時に一回鳴らしておかないと、あとで声が出せない
   player.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
   player.play().catch(() => {});
-  if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
   $("openbtn").disabled = true;
   const rejected = await loadMise();
   $("openbtn").disabled = false;

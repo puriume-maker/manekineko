@@ -1,5 +1,5 @@
 // 声：招き猫のセリフを Gemini TTS（Laomedeia）で読み上げて WAV で返す。
-// 鍵はサーバー側の環境変数 GEMINI_API_KEY だけ。無ければ 204 を返し、ページは iPad の声で代わりに読む
+// 鍵はサーバー側の環境変数 GEMINI_API_KEY だけ。無ければ 204 を返し、ページは吹き出しだけ出す
 import { shopOK } from "./_claude.js";
 
 const MODEL = "gemini-3.8-flash-tts";
