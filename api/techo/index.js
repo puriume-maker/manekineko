@@ -12,6 +12,7 @@ import fs from "node:fs";
 import { client, shopOK } from "../_claude.js";
 
 const BUDGET = { type: "limit", max_list_cost: { amount: "100", currency: "USD" } }; // 1会話1ドル
+const DATE_MARK = "【今日】"; // 今日の日付を助手に伝える文。画面には出さない
 const PHOTO_MARK = "【写真】"; // 写真が届いたことを助手に伝える文。画面には文章として出さない
 const BACKSTAGE_MARK = "【裏方】"; // 朝の起動など、店主の発言ではない合図。画面に出さない
 const PHOTO_ONLY_MARK = "【写真だけ】"; // カメラの係が朝の後から写真だけ渡す合図。これへの返答も画面に出さない
@@ -126,7 +127,7 @@ function readTalk(events) {
       messages.push({
         id: e.id,
         who: "owner",
-        text: texts.filter((t) => !t.startsWith(PHOTO_MARK)).join("\n"),
+        text: texts.filter((t) => !t.startsWith(PHOTO_MARK) && !t.startsWith(DATE_MARK)).join("\n"),
         photo: texts.some((t) => t.startsWith(PHOTO_MARK)),
         at: e.processed_at,
       });
@@ -195,7 +196,8 @@ async function say(req, res) {
 
   const c = ids();
   const deliver = async (sessionId) => {
-    const content = [];
+    const today = new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric", weekday: "long" });
+    const content = [{ type: "text", text: `${DATE_MARK}${today}` }];
     if (photo) {
       // 写真は発言に直接添える。福ちゃんが必ず見られて、手帳はこの履歴から写真を読み返せる
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: photo } });
@@ -334,10 +336,6 @@ function checkMise(text) {
   for (const it of d.items.slice(0, 12)) {
     if (!it || !shortText(it.name, 40) || !whole(it.price, 1_000_000)) return EMPTY_MISE;
     const item = { name: it.name, price: it.price };
-    if (it.left !== undefined && it.left !== null) {
-      if (!whole(it.left, 100_000)) return EMPTY_MISE;
-      item.left = it.left;
-    }
     items.push(item);
   }
   return { date: d.date, items, lines: { greet: lines(d.lines.greet), bye: lines(d.lines.bye), chat: lines(d.lines.chat, 8) } };

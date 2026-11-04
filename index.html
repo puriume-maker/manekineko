@@ -143,7 +143,7 @@
   </section>
   <div class="foot">
     <span id="camnote">📷 通る人に気づくためにカメラを使ってるよ。録画はしねがら安心してけれ。</span>
-    <button id="close">店じまい</button>
+    <button id="close">店じまい（長押し）</button>
   </div>
 </main>
 
@@ -252,11 +252,6 @@ function drawFuda() {
     const price = document.createElement("b");
     price.textContent = `${it.price.toLocaleString("ja-JP")}円`;
     card.append(it.name, price);
-    if (it.left === 0) { // 残り数は数えられないので出さない。売り切れだけ、店主が福ちゃんに話した時に出す
-      const left = document.createElement("small");
-      left.textContent = "売り切れ";
-      card.append(left);
-    }
     box.append(card);
   }
 }
@@ -471,13 +466,25 @@ $("openbtn").onclick = async () => {
   prepareVoices(); // 読めなかった時も、決まり文句の声は作っておく
 };
 
-$("close").onclick = () => {
+// お客さんが触っても閉まらないように、3秒押した時だけ閉める
+const CLOSE_HOLD = 3000;
+let closeTimer = null;
+const closeBtn = $("close");
+const cancelClose = () => { clearTimeout(closeTimer); closeTimer = null; closeBtn.textContent = "店じまい（長押し）"; };
+closeBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+closeBtn.addEventListener("pointerdown", () => {
+  closeBtn.textContent = "そのまま3秒…";
+  closeTimer = setTimeout(() => { cancelClose(); closeShop(); }, CLOSE_HOLD);
+});
+["pointerup", "pointerleave", "pointercancel"].forEach((ev) => closeBtn.addEventListener(ev, cancelClose));
+function closeShop() {
+  stopChat();
   shopOpen = false;
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
   $("openhint").textContent = "今日もおつかれさん。";
   $("open").classList.remove("hidden");
-};
+}
 </script>
 </body>
 </html>
