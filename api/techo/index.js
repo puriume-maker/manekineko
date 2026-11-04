@@ -21,7 +21,7 @@ const MORNING_SCAN = 200; // 朝を探して見る会話の数の上限
 const MISE_PATH = "/mise.json";
 const KIROKU_PATH = "/mise_kiroku.md";
 const KIROKU_HEAD = "# 猫からの記録（立ち止まった人数。カメラの動きからの目安）";
-const EMPTY_MISE = { date: null, items: [], lines: { greet: [], bye: [] } };
+const EMPTY_MISE = { date: null, items: [], lines: { greet: [], bye: [], chat: [] } };
 
 let idsFile; // agent/ids.json は一度だけ読む
 function ids() {
@@ -274,7 +274,7 @@ function checkMise(text) {
   let d;
   try { d = JSON.parse(text); } catch { return EMPTY_MISE; }
   if (!d || !realDate(d.date) || !Array.isArray(d.items) || !d.lines) return EMPTY_MISE;
-  const lines = (a) => (Array.isArray(a) ? a.filter((t) => shortText(t, 60)).slice(0, 5) : []);
+  const lines = (a, most = 5) => (Array.isArray(a) ? a.filter((t) => shortText(t, 60)).slice(0, most) : []);
   const items = [];
   for (const it of d.items.slice(0, 12)) {
     if (!it || !shortText(it.name, 40) || !whole(it.price, 1_000_000)) return EMPTY_MISE;
@@ -285,7 +285,7 @@ function checkMise(text) {
     }
     items.push(item);
   }
-  return { date: d.date, items, lines: { greet: lines(d.lines.greet), bye: lines(d.lines.bye) } };
+  return { date: d.date, items, lines: { greet: lines(d.lines.greet), bye: lines(d.lines.bye), chat: lines(d.lines.chat, 8) } };
 }
 
 async function mise(req, res) {

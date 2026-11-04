@@ -290,7 +290,7 @@ let preparing = false;
 async function prepareVoices() {
   if (preparing) return;
   preparing = true;
-  const wanted = [...linesOf("greet"), ...linesOf("bye"), ...FIXED.greet, ...FIXED.bye];
+  const wanted = [...linesOf("greet"), ...(mise.lines.chat || []), ...linesOf("bye"), ...FIXED.greet, ...FIXED.bye];
   for (const text of wanted) {
     if (voices.get(text)) continue;
     try {
@@ -382,10 +382,32 @@ function onWatch(event) {
     countStop();
     catMove("wave", "hop");
     say(pickLine("greet"));
+    startChat();
   } else if (event === "leave") {
+    stopChat();
     say(pickLine("bye"));
   }
 }
+
+// 八百屋のおじさんのように、立ち止まっている間は福ちゃんの今日の話を順に勝手にしゃべる。一周したら黙る
+const CHAT_GAP = 3000; // 話と話の間
+let chatTimer = null;
+function stopChat() { clearTimeout(chatTimer); chatTimer = null; }
+function startChat() {
+  stopChat();
+  const rest = [...(mise.lines.chat || [])];
+  const next = () => {
+    if (!watcher.stopped || !rest.length) return stopChat();
+    if (talkingNow()) { chatTimer = setTimeout(next, 500); return; } // 声が終わるまで待つ
+    chatTimer = setTimeout(() => {
+      if (!watcher.stopped || !rest.length) return stopChat();
+      say(rest.shift());
+      chatTimer = setTimeout(next, 500);
+    }, CHAT_GAP);
+  };
+  chatTimer = setTimeout(next, 500);
+}
+const talkingNow = () => $("cat").classList.contains("talking");
 
 const video = $("video");
 const probe = $("probe");
