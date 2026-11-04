@@ -2,5 +2,6 @@
   "environment": "env_01UmPoU5kDbbxwHqeYetpAse",
   "agent": "agent_01JveNrtf1LCswSUcWpVtazk",
   "store": "memstore_01DiB67vAJFcVcbXKATvBqHZ",
-  "deployment": "depl_01JkAdH2QBP5pybTiSc79PEM"
+  "deployment": "depl_01JkAdH2QBP5pybTiSc79PEM",
+  "yume_deployment": "depl_01TiMsMi4Qe8KXFwqzQs8gvC"
 }
