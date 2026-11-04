@@ -138,7 +138,9 @@
   .msg.helper { padding: 10px 13px; border-radius: 4px; background: var(--card); border-left: 4px solid var(--leaf); box-shadow: 0 1px 3px rgba(60, 48, 20, 0.22); }
   .msg.helper .who { display: block; font-size: 13px; color: var(--leaf); font-weight: 600; }
   .msg.comment { font-size: 16px; line-height: 1.6; padding: 2px 0 2px 11px; border-left: 3px solid var(--field); }
-  /* 投稿の下の小さな返事欄 */
+  /* 投稿の下の返事欄：ふだんは小さい文字だけ */
+  .replyarea { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
+  .replyopen { align-self: flex-start; min-height: 40px; padding: 0 6px 0 0; font: inherit; font-size: 15px; color: var(--leaf); background: none; border: 0; cursor: pointer; }
   .reply { padding: 0; display: flex; flex-direction: column; gap: 4px; }
   .reply .replyrow { display: flex; gap: 6px; align-items: flex-end; }
   .reply textarea { min-height: 40px; padding: 7px 10px; font-size: 16px; line-height: 1.5; background: rgba(255, 255, 255, 0.75); }
@@ -158,7 +160,11 @@
   @keyframes dot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .thinking i { animation: none; } }
 
-  /* 入力 */
+  /* 入力：上の記録欄はふだん畳んで、緑のボタン一つ */
+  .writeopen { display: block; width: calc(100% - 2 * var(--pad)); margin: 18px var(--pad) 10px; min-height: 58px; padding: 8px 12px; font: inherit; font-weight: 600; color: #fff; background: var(--leaf); border: 0; border-radius: 6px; box-shadow: 0 2px 5px rgba(60, 48, 20, 0.28); cursor: pointer; }
+  .writehead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 18px var(--pad) 8px; }
+  .writehead .diaryhead { margin: 0; }
+  .writeclose { flex: none; min-height: 40px; padding: 0 10px; font: inherit; font-size: 15px; color: var(--leaf); background: none; border: 0; cursor: pointer; }
   form { padding: 0 var(--pad) 8px; }
   #bottom { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
   .preview { display: flex; flex-wrap: wrap; gap: 14px 12px; margin: 8px 0 10px; }
@@ -199,7 +205,12 @@
 
   <nav class="days" id="days" aria-label="これまでのカメラの写真" hidden></nav>
 
-  <h2 class="diaryhead">今日の記録</h2>
+  <button class="writeopen" id="writeopen" type="button" aria-controls="writepanel">＋ 今日の記録を書く</button>
+  <div id="writepanel" hidden>
+  <div class="writehead">
+    <h2 class="diaryhead">今日の記録</h2>
+    <button class="writeclose" id="writeclose" type="button">閉じる</button>
+  </div>
   <form id="form">
     <div class="preview" id="preview" hidden></div>
     <div class="row">
@@ -212,6 +223,7 @@
     </div>
     <div class="waithint" id="sendhint" hidden>福ちゃんが考え中です。終わると書けます。</div>
   </form>
+  </div>
 
   <section id="talk" aria-live="polite">
     <div id="talknotes"></div>
@@ -500,8 +512,14 @@ function makeBox(id) {
   root.className = "post";
   const thread = document.createElement("div");
   thread.className = "thread";
+  const area = document.createElement("div");
+  area.className = "replyarea";
+  const opener = document.createElement("button");
+  opener.type = "button";
+  opener.className = "replyopen";
   const form = document.createElement("form");
   form.className = "reply";
+  form.hidden = true;
   const row = document.createElement("div");
   row.className = "replyrow";
   const input = document.createElement("textarea");
@@ -514,15 +532,25 @@ function makeBox(id) {
   const hint = line("waithint", "福ちゃんが考え中です。終わると送れます。");
   row.append(input, button);
   form.append(row, hint);
-  root.append(thread, form);
-  const box = { id, root, thread, form, input, button, sig: null, post: null };
+  area.append(opener, form);
+  root.append(thread, area);
+  const box = { id, root, thread, area, opener, form, input, button, sig: null, post: null };
+  const setOpen = (open) => {
+    form.hidden = !open;
+    opener.textContent = open ? "💬 閉じる" : input.value.trim() ? "💬 返事する（書きかけあり）" : "💬 返事する";
+    opener.setAttribute("aria-expanded", String(open));
+    if (open) { growBox(input); input.focus(); }
+  };
+  setOpen(false);
+  opener.onclick = () => setOpen(form.hidden);
   form.onsubmit = (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text || isThinking()) return;
     input.value = "";
     growBox(input);
-    sendWords({ text, reply: { post: id, about: aboutOf(box.post) }, restore: () => { input.value = text; growBox(input); } });
+    setOpen(false);
+    sendWords({ text, reply: { post: id, about: aboutOf(box.post) }, restore: () => { input.value = text; setOpen(true); } });
   };
   boxes.set(id, box);
   return box;
@@ -557,7 +585,7 @@ function drawPost(post, inCard) {
     if (thinkingHere) parts.push(thinkingDots());
     box.thread.replaceChildren(...parts);
   }
-  box.form.hidden = post.id === "sending"; // 届く前の投稿にはまだ返事を書けない
+  box.area.hidden = post.id === "sending"; // 届く前の投稿にはまだ返事を書けない
   return box;
 }
 
@@ -637,6 +665,7 @@ function draw() {
   if (isThinking() && (where === null || (!posts.some((p) => p.id === where) && where !== card?.id))) notes.append(thinkingDots());
   $("more").hidden = nextPage === null;
   drawButtons();
+  syncWrite(posts);
 }
 
 function isThinking() { return Boolean(waitingFor) || shown.busy; }
@@ -695,6 +724,7 @@ async function loadDiary(skip = 0, auto = false) {
     const older = [...data.sessions].reverse();
     archive = skip ? [...older, ...archive] : older;
     nextPage = data.next;
+    diaryLoaded = true;
     draw();
     if (nextPage !== null && hasOrphan() && autoPages < MAX_AUTO_PAGES) { autoPages++; loadDiary(nextPage, true); }
   } catch (e) {
@@ -763,6 +793,36 @@ $("camera").onchange = onPick;
 $("album").onchange = onPick;
 
 
+// ---------- 上の記録欄を開く・畳む ----------
+let writeAutoOpened = false; // 聞き取りのために手帳が開いた
+let writeClosedByHand = false; // 店主が閉じたら、手帳からは開き直さない
+let diaryLoaded = false;
+
+const hasDraft = () => Boolean($("text").value.trim() || picked.length);
+
+function setWrite(open, focus = false) {
+  $("writepanel").hidden = !open;
+  $("writeopen").hidden = open;
+  $("writeopen").setAttribute("aria-expanded", String(open));
+  $("writeopen").textContent = hasDraft() ? "＋ 今日の記録を書く（書きかけあり）" : "＋ 今日の記録を書く";
+  if (open) { growText(); if (focus) $("text").focus(); }
+}
+$("writeopen").onclick = () => { writeClosedByHand = false; writeAutoOpened = false; setWrite(true, true); };
+$("writeclose").onclick = () => { writeClosedByHand = true; writeAutoOpened = false; setWrite(false); };
+
+// 初日の聞き取りの間と、まだ何も無い時は、すぐ答えられるように開いておく
+function syncWrite(posts) {
+  const nothingYet = diaryLoaded && !posts.length && !shownMorning();
+  const want = Boolean(shown.interview) || nothingYet;
+  if (want && $("writepanel").hidden && !writeClosedByHand) {
+    setWrite(true);
+    writeAutoOpened = true;
+  } else if (!want && writeAutoOpened) {
+    writeAutoOpened = false;
+    if (!hasDraft() && document.activeElement !== $("text")) setWrite(false);
+  }
+}
+
 // ---------- 送る ----------
 // 上の欄の記録も、投稿の下の返事も同じ道を通る。restore は届かなかった時に入力欄へ戻す
 async function sendWords({ text, photos = [], reply = null, restore }) {
@@ -800,6 +860,7 @@ $("form").onsubmit = (e) => {
   growText();
   picked = [];
   drawPicked();
+  setWrite(false);
   sendWords({
     text, photos,
     restore: () => {
@@ -807,9 +868,10 @@ $("form").onsubmit = (e) => {
       growText();
       picked = photos;
       drawPicked();
+      setWrite(true);
     },
   });
-  $("form").scrollIntoView({ block: "start" }); // 書いた記録はこのすぐ下に出る
+  $("writeopen").scrollIntoView({ block: "start" }); // 書いた記録はこのすぐ下に出る
 };
 
 function growBox(t) {

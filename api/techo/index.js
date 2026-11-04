@@ -19,6 +19,7 @@ const PHOTO_ONLY_MARK = "【写真だけ】"; // カメラの係が朝の後か�
 const REPLY_MARK = "【返事先:"; // どの投稿への返事かを助手に伝える文。保存場所は作らず、画面はこの印で投稿ごとにまとめる。文面は出さない
 const REPLY_END = "への返事です。";
 const FIRST_DAY_CUE = `${BACKSTAGE_MARK}店主がはじめて手帳を開きました。棚は空です。短いあいさつのあとで、初日の聞き取りの最初の一つだけを聞いてください。店主に見せる言葉は日本語で、作業の話はしないでください。`;
+const INTERVIEW_ANSWERS = 3; // 初日の聞き取りの問いの数。この数だけ答えるまで、手帳は記録欄を開いておく
 const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md"]); // 福ちゃんと猫が書くもの。これだけなら棚はまだ空とみなす
 const DIARY_SESSIONS = 10; // 一度に読む過去の会話の数
 const DIARY_SCAN = 200;
@@ -135,6 +136,8 @@ function dropForeword(text) {
 function readTalk(events) {
   const messages = [];
   let thread = null;
+  let firstDay = false; // 初日の聞き取りの会話か
+  let ownerSaid = 0;
   let turnText = "";
   let morning = null;
   let ownerSpoke = false;
@@ -149,8 +152,10 @@ function readTalk(events) {
       paused = failed = false;
       const texts = e.content.filter((b) => b.type === "text").map((b) => b.text);
       silent = texts.some((t) => t.startsWith(BACKSTAGE_MARK + PHOTO_ONLY_MARK));
+      if (texts.includes(FIRST_DAY_CUE)) firstDay = true;
       if (texts.some((t) => t.startsWith(BACKSTAGE_MARK) || t.startsWith("【朝の定時起動"))) continue; // 後ろは印を付ける前の朝の合図
       ownerSpoke = true;
+      ownerSaid++;
       const reply = readReplyMark(texts);
       const hasPhoto = texts.some((t) => t.startsWith(PHOTO_MARK));
       thread = reply ? reply.post : e.id;
@@ -183,7 +188,7 @@ function readTalk(events) {
       failed = true;
     }
   }
-  return { messages, morning, thread, busy, paused, failed };
+  return { messages, morning, thread, interview: firstDay && ownerSaid < INTERVIEW_ANSWERS, busy, paused, failed };
 }
 
 async function talk(req, res) {
