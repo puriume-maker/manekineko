@@ -7,7 +7,6 @@
 //   GET  /api/techo?do=photo&file=file_…      カメラの係の写真（朝の一覧に載っているものだけ）
 //   GET  /api/techo?do=photo&session=…&event=…  日記の写真（この福ちゃんの会話にあるものだけ）
 //   GET  /api/techo?do=mise                   店先の猫が読む札とセリフ（棚の mise.json を検証して返す）
-//   POST /api/techo?do=report {date, count}   猫が数えた立ち止まりの人数を棚に残す（会話は起こさない）
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import fs from "node:fs";
 import { client, shopOK } from "../_claude.js";
@@ -25,8 +24,6 @@ const MAX_TEXT = 8000;
 const MAX_MORNINGS = 7;
 const MORNING_SCAN = 200; // 朝を探して見る会話の数の上限
 const MISE_PATH = "/mise.json";
-const KIROKU_PATH = "/mise_kiroku.md";
-const KIROKU_HEAD = "# 猫からの記録（立ち止まった人数。カメラの動きからの目安）";
 const EMPTY_MISE = { date: null, items: [], lines: { greet: [], bye: [], chat: [] } };
 
 let idsFile; // agent/ids.json は一度だけ読む
@@ -355,42 +352,6 @@ async function mise(req, res) {
 }
 
 // 文字は受け取らない：棚に書くのは検証した日付と数だけ。同じ日は一行にまとめる（数は多い方を残す）
-async function report(req, res) {
-  const { date, count } = req.body || {};
-  if (!realDate(date) || !whole(count, 100_000)) return res.status(400).json({ error: "bad report" });
-  if (Math.abs(Date.parse(`${date}T12:00:00+09:00`) - Date.now()) > 3 * 86_400_000) return res.status(400).json({ error: "bad date" });
-
-  const store = ids().store;
-  const lineFor = (n) => `- ${date} 立ち止まった人：${n}人`;
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const found = await findNote(store, KIROKU_PATH);
-      if (!found) {
-        await client.beta.memoryStores.memories.create(store, { path: KIROKU_PATH, content: `${KIROKU_HEAD}\n${lineFor(count)}\n` });
-        return res.status(200).json({ ok: true });
-      }
-      const note = await client.beta.memoryStores.memories.retrieve(found.id, { memory_store_id: store });
-      const rows = (note.content ?? "").split("\n");
-      const at = rows.findIndex((r) => r.startsWith(`- ${date} `));
-      if (at >= 0) {
-        const before = Number(rows[at].match(/：(\d+)人/)?.[1] ?? 0);
-        rows[at] = lineFor(Math.max(before, count));
-      } else {
-        while (rows.length && !rows.at(-1)) rows.pop();
-        rows.push(lineFor(count), "");
-      }
-      await client.beta.memoryStores.memories.update(found.id, {
-        memory_store_id: store,
-        content: rows.join("\n"),
-        precondition: { type: "content_sha256", content_sha256: note.content_sha256 },
-      });
-      return res.status(200).json({ ok: true });
-    } catch (e) {
-      if (e.status !== 409 || attempt >= 1) throw e; // 福ちゃんと書くのが重なった時だけ、一度読み直す
-    }
-  }
-}
-
 export default async function handler(req, res) {
   if (!process.env.SHOP_CODE || !shopOK(req)) return res.status(403).json({ error: "shop code" });
   const action = req.query.do;
@@ -402,7 +363,6 @@ export default async function handler(req, res) {
     if (action === "mornings" && req.method === "GET") return await mornings(req, res);
     if (action === "photo" && req.method === "GET") return await photo(req, res);
     if (action === "mise" && req.method === "GET") return await mise(req, res);
-    if (action === "report" && req.method === "POST") return await report(req, res);
     return res.status(404).json({ error: "unknown" });
   } catch (e) {
     console.error("techo", action, e.status, e.message); // 鍵は載らない（状態コードと文面だけ）

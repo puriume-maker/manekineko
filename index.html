@@ -224,7 +224,6 @@ const PRESENT_RATIO = 0.06;   // その点が画面のこの割合を超えた�
 const LIGHT_RATIO = 0.7;      // 画面のほとんどが変わった時は、人ではなく光の変化とみなす
 const NAP_AFTER = 60 * 1000;  // だれも来なければ寝る
 const MISE_EVERY = 5 * 60 * 1000;   // 福ちゃんの札とセリフを読み直す間隔
-const REPORT_EVERY = 5 * 60 * 1000; // 立ち止まりの人数を棚へ送る間隔
 
 // 福ちゃんの言葉が読めない時の決まり文句（黙らない）
 const FIXED = {
@@ -337,31 +336,6 @@ function catMove(...names) {
   c.classList.add(...names);
 }
 
-// ---------- 立ち止まった人数（数だけ。棚へはサーバーが書く） ----------
-const todayText = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
-let stops = (() => { try { return JSON.parse(localStorage.getItem("niwasaki_stops")) || null; } catch (e) { return null; } })() || { date: todayText(), count: 0, sent: 0 };
-const saveStops = () => { try { localStorage.setItem("niwasaki_stops", JSON.stringify(stops)); } catch (e) {} };
-
-async function sendReport() {
-  if (stops.count === stops.sent) return;
-  const { date, count } = stops;
-  try {
-    const r = await apiFetch("/api/techo?do=report", {
-      method: "POST", keepalive: true,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, count }),
-    });
-    if (r.ok && stops.date === date) { stops.sent = count; saveStops(); }
-  } catch (e) {} // 次の回にまた送る
-}
-function countStop() {
-  if (stops.date !== todayText()) {
-    sendReport(); // 前の日の分を送ってから、きょうの分を数え直す
-    stops = { date: todayText(), count: 0, sent: 0 };
-  }
-  stops.count++;
-  saveStops();
-}
 
 // ---------- カメラ：背景との差だけ見る（画像は保存も送信もしない） ----------
 const watcher = { bg: null, seen: false, since: 0, lastSeen: 0, stopped: false };
@@ -398,7 +372,6 @@ function onWatch(event) {
     if (asleep) wake();
     catMove("wave"); // 声なしで手を振る
   } else if (event === "stop") {
-    countStop();
     catMove("wave", "hop");
     say(pickLine("greet"));
     startChat();
@@ -476,10 +449,8 @@ let wakeLock = null;
 async function keepScreenOn() { try { wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && shopOpen) keepScreenOn();
-  if (document.visibilityState === "hidden" && shopOpen) sendReport();
 });
 setInterval(() => { if (shopOpen) loadMise(); }, MISE_EVERY);
-setInterval(() => { if (shopOpen) sendReport(); }, REPORT_EVERY);
 
 $("openbtn").onclick = async () => {
   // iPad は最初のタッチの時に一回鳴らしておかないと、あとで声が出せない
@@ -501,7 +472,6 @@ $("openbtn").onclick = async () => {
 };
 
 $("close").onclick = () => {
-  sendReport();
   shopOpen = false;
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
