@@ -127,6 +127,7 @@ function readReplyMark(texts) {
 function readTalk(events) {
   const messages = [];
   let thread = null;
+  let turnText = "";
   let morning = null;
   let ownerSpoke = false;
   let busy = false;
@@ -135,6 +136,7 @@ function readTalk(events) {
   let silent = false; // 写真だけの合図への返答は店主に見せない
   for (const e of events) {
     if (e.type === "user.message") {
+      turnText = "";
       busy = true;
       paused = failed = false;
       const texts = e.content.filter((b) => b.type === "text").map((b) => b.text);
@@ -156,7 +158,8 @@ function readTalk(events) {
       });
     } else if (e.type === "agent.message") {
       const text = e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
-      if (!text || silent) continue;
+      if (!text || silent || text === turnText) continue; // 棚に書いたあとに同じ言葉を言い直すことがあるので、一度だけ出す
+      turnText = text;
       if (!ownerSpoke && !morning) {
         morning = { id: e.id, text, at: e.processed_at };
         thread = e.id;
