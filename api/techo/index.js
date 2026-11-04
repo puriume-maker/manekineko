@@ -124,6 +124,14 @@ function readReplyMark(texts) {
 // 出来事の列を、画面に出す会話へまとめる。
 // 発言にはそれぞれ post（属する投稿の番号）を付ける。印のない店主の発言はそれ自体が新しい投稿で、
 // 福ちゃんの言葉は直前の店主の発言と同じ投稿に入る（裏方の促しのあとの返事も、促しの前の発言の投稿に入る）
+// 返事の頭に作業の報告を英語で付けることがある。日本語が一字もない段落が頭にあれば、店主には見せない
+function dropForeword(text) {
+  const rows = text.split(/\n\s*\n/);
+  const jp = /[\u3040-\u30ff\u4e00-\u9fff]/;
+  while (rows.length > 1 && !jp.test(rows[0])) rows.shift();
+  return rows.join("\n\n");
+}
+
 function readTalk(events) {
   const messages = [];
   let thread = null;
@@ -157,7 +165,7 @@ function readTalk(events) {
         at: e.processed_at,
       });
     } else if (e.type === "agent.message") {
-      const text = e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+      const text = dropForeword(e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim());
       if (!text || silent || text === turnText) continue; // 棚に書いたあとに同じ言葉を言い直すことがあるので、一度だけ出す
       turnText = text;
       if (!ownerSpoke && !morning) {
