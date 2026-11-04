@@ -1,4 +1,6 @@
-// 家のカメラ係：毎朝1回、家のMacで動く。福ちゃんが夢を見終えてから、庭を1枚撮って朝の会話を始める。
+// 家のカメラ係（つなぎたい人向けのおまけ）：毎朝1回、家のMacで動く。写真を1枚撮って福ちゃんに渡す。
+// クラウドの定時起動で今日の朝のひとことがもう出ていれば、写真だけ渡す（店主には二度しゃべらない）。
+// まだなら、夢を見せてから（クラウドの夢がなければ）、写真つきで朝の会話を始める。
 //   node home/asa.mjs            きょうの分がまだなら動く
 //   node home/asa.mjs --force    きょうの分があっても、夢も朝ももう一度動く
 //   node home/asa.mjs --yume-only  夢だけ見る（確かめる時用）
@@ -13,7 +15,8 @@ import Anthropic, { toFile } from "@anthropic-ai/sdk";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const configDir = path.join(os.homedir(), ".config/manekineko");
-const photoDir = path.join(os.homedir(), ".local/share/manekineko/photos");
+const photoDir = process.env.MANEKI_PHOTO_DIR || path.join(os.homedir(), ".local/share/manekineko/photos");
+const idsPath = process.env.MANEKI_IDS_FILE || path.join(here, "../agent/ids.json"); // 試験では別の棚を指す
 const indexPath = path.join(photoDir, "index.json");
 const UPLOADS = "/mnt/session/uploads";
 const BUDGET = { type: "limit", max_list_cost: { amount: "100", currency: "USD" } }; // 1会話1ドル
@@ -123,8 +126,46 @@ const shelf = (ids) => ({
   type: "memory_store",
   memory_store_id: ids.store,
   access: "read_write",
-  instructions: "庭の記憶の棚。始める前に読み、覚えることはここに書く。",
+  instructions: "記憶の棚。始める前に読み、覚えることはここに書く。",
 });
+
+// クラウドの定時起動が今日動いた会話を探す。なければ null
+async function cloudToday(client, deploymentId) {
+  if (!deploymentId) return null;
+  for await (const s of client.beta.sessions.list({ deployment_id: deploymentId, order: "desc", limit: 5 })) {
+    if (dateOf(new Date(s.created_at)) === today && s.status !== "terminated") return s;
+    break; // 新しい順なので、いちばん新しいものだけ見れば足りる
+  }
+  return null;
+}
+
+// 今日の朝のひとことがもう店主に届いているか
+async function cloudMorning(client, ids) {
+  const session = await cloudToday(client, ids.deployment);
+  if (!session) return null;
+  const page = await client.beta.sessions.events.list(session.id, { types: ["agent.message"], limit: 5 });
+  const spoke = page.data.some((e) => e.content.some((b) => b.type === "text" && b.text.trim()));
+  return spoke ? session : null;
+}
+
+// 朝のひとことのあとで、写真だけを渡す。店主には何も言わせない（手帳は写真を朝のひとことに並べる）
+async function givePhotoOnly(client, session, bytes, fileId) {
+  await client.beta.sessions.update(session.id, { metadata: { photo_file_id: fileId } });
+  const text = [
+    "【裏方】【写真だけ】カメラの係が今朝の写真を撮りました。写真はこの合図に添えてあります。朝のひとことはもう店主に届いているので、店主には何も言わず、返答を書かずに終えてください。",
+    "棚の kiroku/YYYY-MM.md に、今朝写真で見たことを日付つきで一行足してください（出どころは「写真で確認」）。見えないものは書かない。写したいものが写っていなければ、その事実だけを書く。",
+    "mise.json に品があれば、写真に合わせて chat を書き直してかまいません。",
+  ].join("\n");
+  await client.beta.sessions.events.send(session.id, {
+    events: [{
+      type: "user.message",
+      content: [
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: bytes.toString("base64") } },
+        { type: "text", text },
+      ],
+    }],
+  });
+}
 
 // 夢が終わるまで待つ。時間切れや確認待ちなら止めて先へ進む
 async function waitForDream(client, sessionId) {
@@ -183,10 +224,16 @@ async function main() {
   const apiKey = readEnv(".env", "ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("鍵が見つかりません");
   const client = new Anthropic({ apiKey });
-  const ids = JSON.parse(fs.readFileSync(path.join(here, "../agent/ids.json"), "utf8"));
+  const ids = JSON.parse(fs.readFileSync(idsPath, "utf8"));
 
-  if (force || !index.dreams.some((d) => d.date === today)) await dream(client, ids, index);
+  const dreamed = index.dreams.some((d) => d.date === today) || Boolean(await cloudToday(client, ids.yume_deployment).catch(() => null));
+  if (force || yumeOnly || !dreamed) await dream(client, ids, index);
   if (yumeOnly) return;
+
+  const already = force ? null : await cloudMorning(client, ids).catch((e) => {
+    console.error(`クラウドの朝を確かめられません: ${e.status ?? e.message}`);
+    return null;
+  });
 
   const bytes = await shoot();
   let fileId = null;
@@ -198,6 +245,19 @@ async function main() {
       console.error(`写真を上げられません: ${e.status ?? e.message}`);
     }
   }
+
+  if (already) {
+    const shot = { date: today, at: now.toISOString(), file_id: null, session: already.id };
+    if (fileId) {
+      await givePhotoOnly(client, already, bytes, fileId);
+      shot.file_id = fileId;
+    }
+    index.shots.push(shot);
+    writeIndex(index);
+    console.log(JSON.stringify({ date: today, session: already.id, photo: Boolean(fileId), photoOnly: true, photoBytes: bytes?.length ?? 0 }));
+    return;
+  }
+
   const earlier = fileId ? pickEarlier(index.shots) : null;
 
   const shot = { date: today, at: now.toISOString(), file_id: fileId, session: null };

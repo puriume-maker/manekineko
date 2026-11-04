@@ -1,19 +1,25 @@
 // お店の手帳の裏側：助手（Managed Agents）との今の会話、写メ、記憶の棚。
 //   GET  /api/techo?do=talk[&session=sesn_…]  今の会話（なければ新しく始める）
 //   POST /api/techo?do=say   {text, photo}    発言を送る（photo は JPEG の base64）
+//   GET  /api/techo?do=diary[&except=sesn_…&skip=N]  今の会話より前の日記と返事（新しい会話から順に数回分）
 //   GET  /api/techo?do=shelf                  記憶の棚の中身
 //   GET  /api/techo?do=mornings               朝の一覧（最近7日、写真の番号とひとこと）
-//   GET  /api/techo?do=photo&file=file_…      朝の写真（朝の一覧に載っているものだけ）
+//   GET  /api/techo?do=photo&file=file_…      カメラの係の写真（朝の一覧に載っているものだけ）
+//   GET  /api/techo?do=photo&session=…&event=…  日記の写真（この福ちゃんの会話にあるものだけ）
 //   GET  /api/techo?do=mise                   店先の猫が読む札とセリフ（棚の mise.json を検証して返す）
 //   POST /api/techo?do=report {date, count}   猫が数えた立ち止まりの人数を棚に残す（会話は起こさない）
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import fs from "node:fs";
-import { toFile } from "@anthropic-ai/sdk";
 import { client, shopOK } from "../_claude.js";
 
 const BUDGET = { type: "limit", max_list_cost: { amount: "100", currency: "USD" } }; // 1会話1ドル
 const PHOTO_MARK = "【写真】"; // 写真が届いたことを助手に伝える文。画面には文章として出さない
 const BACKSTAGE_MARK = "【裏方】"; // 朝の起動など、店主の発言ではない合図。画面に出さない
+const PHOTO_ONLY_MARK = "【写真だけ】"; // カメラの係が朝の後から写真だけ渡す合図。これへの返答も画面に出さない
+const FIRST_DAY_CUE = `${BACKSTAGE_MARK}店主がはじめて手帳を開きました。棚は空です。短いあいさつのあとで、初日の聞き取りの最初の一つだけを聞いてください。店主に見せる言葉は日本語で、作業の話はしないでください。`;
+const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md"]); // 福ちゃんと猫が書くもの。これだけなら棚はまだ空とみなす
+const DIARY_SESSIONS = 10; // 一度に読む過去の会話の数
+const DIARY_SCAN = 200;
 const MAX_PHOTO_BASE64 = 4_200_000; // Vercel の本文上限 4.5MB の内側
 const MAX_TEXT = 8000;
 const MAX_MORNINGS = 7;
@@ -39,7 +45,19 @@ function ids() {
   return { agent, environment, store };
 }
 
-function startSession({ agent, environment, store }) {
+// 朝と夢の会話には、定時起動（クラウド）でもカメラの係（家のMac）でも metadata.kind が付いている
+const dateOf = (s) => s.metadata?.date || new Date(s.created_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+
+async function shelfIsEmpty(store) {
+  for await (const m of client.beta.memoryStores.memories.list(store)) {
+    if (m.type === "memory" && !NOT_NOTES.has(m.path)) return false;
+  }
+  return true;
+}
+
+// 棚が空なら、はじめの聞き取りから始める
+async function startSession({ agent, environment, store }) {
+  const firstDay = await shelfIsEmpty(store);
   return client.beta.sessions.create({
     agent,
     environment_id: environment,
@@ -49,8 +67,9 @@ function startSession({ agent, environment, store }) {
       type: "memory_store",
       memory_store_id: store,
       access: "read_write",
-      instructions: "庭と店のノート。始める前に読み、覚えることはここに書く。",
+      instructions: "店主のノート。始める前に読み、覚えることはここに書く。",
     }],
+    ...(firstDay ? { initial_events: [{ type: "user.message", content: [{ type: "text", text: FIRST_DAY_CUE }] }] } : {}),
   });
 }
 
@@ -98,11 +117,13 @@ function readTalk(events) {
   let busy = false;
   let paused = false;
   let failed = false;
+  let silent = false; // 写真だけの合図への返答は店主に見せない
   for (const e of events) {
     if (e.type === "user.message") {
       busy = true;
       paused = failed = false;
       const texts = e.content.filter((b) => b.type === "text").map((b) => b.text);
+      silent = texts.some((t) => t.startsWith(BACKSTAGE_MARK + PHOTO_ONLY_MARK));
       if (texts.some((t) => t.startsWith(BACKSTAGE_MARK) || t.startsWith("【朝の定時起動"))) continue; // 後ろは印を付ける前の朝の合図
       ownerSpoke = true;
       messages.push({
@@ -114,7 +135,7 @@ function readTalk(events) {
       });
     } else if (e.type === "agent.message") {
       const text = e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
-      if (!text) continue;
+      if (!text || silent) continue;
       if (!ownerSpoke && !morning) morning = { id: e.id, text, at: e.processed_at };
       else messages.push({ id: e.id, who: "helper", text, at: e.processed_at });
     } else if (e.type === "session.status_idle") {
@@ -170,23 +191,18 @@ async function say(req, res) {
   if (!text && !photo) return res.status(400).json({ error: "empty" });
   if (photo.length > MAX_PHOTO_BASE64) return res.status(413).json({ error: "photo too large" });
 
-  let upload = null;
   if (photo) {
     const bytes = Buffer.from(photo, "base64");
     if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return res.status(400).json({ error: "not a jpeg" });
-    const name = `shamei_${Date.now()}.jpg`;
-    upload = {
-      path: `/mnt/session/uploads/${name}`,
-      file: await client.beta.files.upload({ file: await toFile(bytes, name, { type: "image/jpeg" }) }),
-    };
   }
 
   const c = ids();
   const deliver = async (sessionId) => {
     const content = [];
-    if (upload) {
-      await client.beta.sessions.resources.add(sessionId, { type: "file", file_id: upload.file.id, mount_path: upload.path });
-      content.push({ type: "text", text: `${PHOTO_MARK}店主から写真が届きました。${upload.path} を読んで、写っているものを見てください。ファイルの場所は店主に言わないでください。` });
+    if (photo) {
+      // 写真は発言に直接添える。福ちゃんが必ず見られて、手帳はこの履歴から写真を読み返せる
+      content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: photo } });
+      content.push({ type: "text", text: `${PHOTO_MARK}店主から写真が届きました。添えてある写真を見てください。` });
     }
     if (text) content.push({ type: "text", text });
     const sent = await client.beta.sessions.events.send(sessionId, { events: [{ type: "user.message", content }] });
@@ -204,6 +220,31 @@ async function say(req, res) {
   }
 }
 
+// 今の会話より前の日記。会話ごとに読むので、写真の多い人でも一度に読むのは数回分だけ
+async function diary(req, res) {
+  const c = ids();
+  const except = String(req.query.except || "");
+  const skip = Math.max(0, Number(req.query.skip) || 0);
+  const picked = [];
+  let seen = 0;
+  let scanned = 0;
+  let more = false;
+  for await (const s of client.beta.sessions.list({ agent_id: c.agent, memory_store_id: c.store, order: "desc", limit: 50 })) {
+    if (++scanned > DIARY_SCAN) break;
+    if (s.id === except || s.metadata?.kind === "yume") continue;
+    if (seen++ < skip) continue;
+    if (picked.length === DIARY_SESSIONS) { more = true; break; }
+    picked.push(s);
+  }
+  const sessions = await Promise.all(picked.map(async (s) => {
+    const events = [];
+    for await (const e of client.beta.sessions.events.list(s.id, { limit: 1000 })) events.push(e);
+    const { messages, morning } = readTalk(events);
+    return { session: s.id, messages, morning };
+  }));
+  return res.status(200).json({ sessions, next: more ? skip + picked.length : null });
+}
+
 async function shelf(req, res) {
   const notes = [];
   for await (const m of client.beta.memoryStores.memories.list(ids().store, { view: "full" })) {
@@ -218,7 +259,7 @@ async function morningSessions() {
   const found = new Map();
   let seen = 0;
   for await (const s of client.beta.sessions.list({ agent_id: ids().agent, order: "desc", limit: 50 })) {
-    if (s.metadata?.kind === "asa" && s.metadata.date && !found.has(s.metadata.date)) found.set(s.metadata.date, s);
+    if (s.metadata?.kind === "asa" && !found.has(dateOf(s))) found.set(dateOf(s), s);
     if (found.size >= MAX_MORNINGS || ++seen >= MORNING_SCAN) break;
   }
   return [...found.values()];
@@ -236,8 +277,8 @@ async function firstWord(sessionId) {
 async function mornings(req, res) {
   const sessions = await morningSessions();
   const list = await Promise.all(sessions.map(async (s) => ({
-    date: s.metadata.date,
-    fileId: s.metadata.photo_file_id || null,
+    date: dateOf(s),
+    fileId: s.metadata?.photo_file_id || null,
     word: await firstWord(s.id),
     looking: s.status === "running" || s.status === "rescheduling",
   })));
@@ -245,13 +286,30 @@ async function mornings(req, res) {
 }
 
 // 上げたファイルは Files API から取り出せない（生成物だけが取り出せる決まり）ので、
-// 朝の合図に添えた写真を、その会話の履歴から読む。朝の一覧にある番号しか受けつけない。
+// 発言に添えた写真を、その会話の履歴から読む。
+//   file：カメラの係の写真。朝の一覧にある番号しか受けつけない
+//   session と event：日記の写真。この福ちゃんの会話にあるものしか受けつけない
 async function photo(req, res) {
   const file = String(req.query.file || "");
-  const session = (await morningSessions()).find((s) => s.metadata.photo_file_id && s.metadata.photo_file_id === file);
-  if (!session) return res.status(404).json({ error: "not a morning photo" });
-  const page = await client.beta.sessions.events.list(session.id, { types: ["user.message"], limit: 1 });
-  const image = page.data[0]?.content.find((b) => b.type === "image" && b.source?.type === "base64");
+  const asked = String(req.query.session || "");
+  const eventId = String(req.query.event || "");
+  let sessionId;
+  if (file) {
+    sessionId = (await morningSessions()).find((s) => s.metadata?.photo_file_id === file)?.id;
+    if (!sessionId) return res.status(404).json({ error: "not a morning photo" });
+  } else {
+    if (!/^sesn_\w+$/.test(asked) || !eventId) return res.status(400).json({ error: "bad photo" });
+    const s = await client.beta.sessions.retrieve(asked);
+    if (s.agent?.id !== ids().agent) return res.status(404).json({ error: "not ours" });
+    sessionId = asked;
+  }
+  let image = null;
+  for await (const e of client.beta.sessions.events.list(sessionId, { types: ["user.message"], limit: 100 })) {
+    const texts = e.content.filter((b) => b.type === "text").map((b) => b.text);
+    const match = file ? texts.some((t) => t.startsWith(BACKSTAGE_MARK)) : e.id === eventId;
+    image = match ? e.content.find((b) => b.type === "image" && b.source?.type === "base64") : null;
+    if (image) break;
+  }
   if (!image) return res.status(404).json({ error: "no photo" });
   res.setHeader("content-type", image.source.media_type);
   res.setHeader("cache-control", "private, max-age=604800, immutable");
@@ -339,6 +397,7 @@ export default async function handler(req, res) {
   try {
     if (action === "talk" && req.method === "GET") return await talk(req, res);
     if (action === "say" && req.method === "POST") return await say(req, res);
+    if (action === "diary" && req.method === "GET") return await diary(req, res);
     if (action === "shelf" && req.method === "GET") return await shelf(req, res);
     if (action === "mornings" && req.method === "GET") return await mornings(req, res);
     if (action === "photo" && req.method === "GET") return await photo(req, res);

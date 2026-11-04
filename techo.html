@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="お店の手帳">
 <meta name="theme-color" content="#fbf6e6">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
 <title>お店の手帳</title>
 <style>
   /* めくった手帳：方眼の紙、左にリング穴と金具、右に重なった紙の束 */
@@ -116,17 +120,18 @@
   .code input { font: inherit; padding: 12px; border: 1px solid var(--field); border-radius: 4px; background: #fff; color: var(--ink); width: 100%; }
   .needcode { color: var(--warn); font-size: 16px; margin: 0; }
 
-  /* 会話：ページの下半分に貼ったメモ */
-  .talkhead { margin: 26px var(--pad) 0; padding-top: 12px; border-top: 2px dashed var(--line); font-size: 16px; font-weight: 600; color: var(--leaf); }
-  #talk { padding: 10px var(--pad) 12px; display: flex; flex-direction: column; gap: 12px; }
-  .msg { max-width: 92%; padding: 10px 13px; border-radius: 4px; box-shadow: 0 1px 3px rgba(60, 48, 20, 0.22); }
-  .msg.helper { align-self: flex-start; background: var(--card); }
-  .msg.owner { align-self: flex-end; background: var(--leaf-soft); }
+  /* 日記：今日の欄と、積もっていくページ */
+  .diaryhead { margin: 18px var(--pad) 8px; font-size: 20px; font-weight: 600; letter-spacing: 0.06em; }
+  #talk { padding: 4px var(--pad) 12px; display: flex; flex-direction: column; gap: 4px; }
+  .entry { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-top: 2px dashed var(--line); }
+  .entry > time { font-size: 14px; color: var(--sub); }
   .msg .body { white-space: pre-wrap; }
-  .msg time { display: block; font-size: 13px; color: var(--sub); margin-top: 3px; }
-  .msg img { display: block; width: 100%; max-width: 280px; border-radius: 2px; margin-bottom: 6px; }
+  .msg.owner img { display: block; width: 100%; margin-bottom: 8px; border: 6px solid var(--card); border-radius: 2px; box-shadow: 0 2px 7px rgba(60, 48, 20, 0.28); }
+  .msg.helper { padding: 10px 13px; border-radius: 4px; background: var(--card); border-left: 4px solid var(--leaf); box-shadow: 0 1px 3px rgba(60, 48, 20, 0.22); }
+  .msg.helper .who { display: block; font-size: 13px; color: var(--leaf); font-weight: 600; }
   .photochip { color: var(--sub); font-size: 16px; }
-  .hello, .notice { align-self: stretch; color: var(--sub); font-size: 16px; padding: 2px 0; }
+  .hello, .notice { align-self: stretch; color: var(--sub); font-size: 16px; padding: 8px 0 2px; }
+  .more { display: block; margin: 0 var(--pad) 8px; min-height: 44px; padding: 0 14px; font: inherit; font-size: 16px; color: var(--leaf); background: var(--card); border: 1px dashed var(--leaf); border-radius: 4px; cursor: pointer; }
   .notice { color: var(--warn); }
   .thinking { align-self: flex-start; color: var(--sub); padding: 4px 6px; }
   .thinking i { font-style: normal; animation: dot 1.4s infinite; }
@@ -143,7 +148,7 @@
   .preview button { position: absolute; top: -8px; right: -8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
   .row { display: flex; gap: 8px; align-items: flex-end; }
   textarea {
-    flex: 1; min-width: 0; font: inherit; resize: none; padding: 11px 13px; min-height: 50px; max-height: 40vh;
+    flex: 1; min-width: 0; font: inherit; resize: none; padding: 11px 13px; min-height: 84px; max-height: 40vh;
     border: 1px solid var(--field); border-radius: 4px; background: #fff; color: var(--ink);
   }
   textarea::placeholder, .code input::placeholder { color: var(--sub); opacity: 1; }
@@ -171,25 +176,26 @@
     </div>
   </section>
 
-  <nav class="days" id="days" aria-label="これまでの朝" hidden></nav>
+  <nav class="days" id="days" aria-label="これまでのカメラの写真" hidden></nav>
 
-  <h2 class="talkhead">話したいことがあれば</h2>
-  <section id="talk" aria-live="polite"></section>
-
+  <h2 class="diaryhead">今日の日記</h2>
   <form id="form">
     <div class="preview" id="preview" hidden>
       <img id="previewimg" alt="送る写真">
       <button type="button" id="previewoff" aria-label="写真をやめる">×</button>
     </div>
     <div class="row">
-      <textarea id="text" rows="1" placeholder="福ちゃんに話す" aria-label="福ちゃんに話す"></textarea>
-      <button class="send" id="send" type="submit">送る</button>
+      <textarea id="text" rows="3" placeholder="今日作ったもの、気づいたこと。写真だけでも、聞きたいことでも" aria-label="今日の日記"></textarea>
+      <button class="send" id="send" type="submit">書く</button>
     </div>
     <div class="tools" style="margin: 8px 0 0">
       <label class="pick">写真を撮る<input id="camera" type="file" accept="image/*" capture="environment"></label>
       <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*"></label>
     </div>
   </form>
+
+  <section id="talk" aria-live="polite"></section>
+  <button class="more" id="more" type="button" hidden>もっと前を見る</button>
 
   <div id="bottom">
     <details class="fold" id="shelf">
@@ -211,7 +217,7 @@
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 2500;
 const GIVE_UP_MS = 5 * 60 * 1000;
-const MAX_SIDE = 1600;
+const MAX_SIDE = 1280;
 const MAX_BASE64 = 4_000_000; // Vercel の本文上限 4.5MB の内側に収める
 
 // ---------- 合言葉（index.html と同じ置き場所・同じヘッダ） ----------
@@ -255,11 +261,11 @@ async function request(query, opts = {}) {
 }
 async function api(query, opts) { return (await request(query, opts)).json(); }
 
-// ---------- 今朝の福ちゃんと、過去の朝 ----------
+// ---------- 今朝の福ちゃん。カメラの係を使う人には、写真の列も ----------
 let mornings = [];
 let chosen = null;  // 見ている朝の日付
 let morningTimer = null;
-const photoUrls = new Map(); // 写真の番号 → 画面用のURL（<img> はヘッダを送れないので fetch して持つ）
+const photoUrls = new Map(); // 写真の問い合わせ → 画面用のURL（<img> はヘッダを送れないので fetch して持つ）
 
 const todayText = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 function dayLabel(date) {
@@ -267,33 +273,34 @@ function dayLabel(date) {
   return `${m}月${d}日`;
 }
 
-function photoUrl(fileId) {
-  if (!photoUrls.has(fileId)) {
-    photoUrls.set(fileId, request(`do=photo&file=${encodeURIComponent(fileId)}`)
+function fetchPhoto(query) {
+  if (!photoUrls.has(query)) {
+    photoUrls.set(query, request(`do=photo&${query}`)
       .then((r) => r.blob())
       .then((b) => URL.createObjectURL(b))
-      .catch((e) => { photoUrls.delete(fileId); throw e; }));
+      .catch((e) => { photoUrls.delete(query); throw e; }));
   }
-  return photoUrls.get(fileId);
+  return photoUrls.get(query);
 }
+const photoUrl = (fileId) => fetchPhoto(`file=${encodeURIComponent(fileId)}`);
+
+const usesCamera = () => mornings.some((m) => m.fileId);
+// 今朝の分がある時だけ出す。カメラの係を使う人は、選んだ日の朝も見られる
+const shownMorning = () => mornings.find((x) => x.date === chosen && (usesCamera() || x.date === todayText()) && (x.word || x.looking));
 
 function drawCard() {
-  const m = mornings.find((x) => x.date === chosen);
+  const m = shownMorning();
   const img = $("asaphoto");
   const word = $("asaword");
-  $("asadate").hidden = !m;
+  $("asa").hidden = !m;
   img.hidden = true;
-  if (!m) {
-    $("asatitle").textContent = "今朝の福ちゃん";
-    word.textContent = "福ちゃんはまだ庭を見に行っていません。朝になると、ここに庭の写真とひとことが届きます。";
-    return;
-  }
+  if (!m) return;
   const isToday = m.date === todayText();
   $("asatitle").textContent = isToday ? "今朝の福ちゃん" : `${dayLabel(m.date)}の福ちゃん`;
   $("asadate").textContent = `${dayLabel(m.date)}の朝`;
-  word.textContent = m.word || (m.looking ? "福ちゃんが庭を見ているところです。" : "この朝は、ひとことがありません。");
+  word.textContent = m.word || "福ちゃんが朝のしたくをしているところです。";
   if (m.fileId) {
-    img.alt = `${dayLabel(m.date)}の朝の庭の写真`;
+    img.alt = `${dayLabel(m.date)}の朝のカメラの写真`;
     photoUrl(m.fileId).then((url) => {
       if (chosen !== m.date) return;
       img.src = url;
@@ -304,7 +311,7 @@ function drawCard() {
 
 function drawDays() {
   const box = $("days");
-  box.hidden = mornings.length < 2;
+  box.hidden = !usesCamera() || mornings.length < 2;
   box.replaceChildren();
   for (const m of mornings) {
     const b = document.createElement("button");
@@ -336,24 +343,26 @@ async function loadMornings() {
   try {
     const data = await api("do=mornings");
     mornings = data.mornings;
-    $("asa").hidden = false;
     if (!mornings.some((m) => m.date === chosen)) chosen = mornings[0]?.date ?? null;
     drawCard();
     drawDays();
+    draw(); // 朝のひとことは一番上に出すので、日記の側には重ねない
     if (mornings.some((m) => m.looking)) morningTimer = setTimeout(loadMornings, 5000);
   } catch (e) {
-    if (e.message !== "code") { $("asa").hidden = false; $("asaword").textContent = "つながりにくいようです。少し置いて開き直してみてください。"; }
+    if (e.message !== "code") { notice = "つながりにくいようです。少し置いて開き直してみてください。"; draw(); }
   }
 }
 
 // ---------- 会話を描く ----------
 let session = null;
-let shown = { messages: [], busy: false, paused: false, failed: false };
+let shown = { messages: [], morning: null, busy: false, paused: false, failed: false };
 let waitingFor = null;      // 送ったばかりで、まだ会話に現れていない発言
 let waitingText = null;     // 同じ発言の、画面に先に出しておく内容
 let waitStart = 0;
 let notice = "";
-let followTalk = false;
+let archive = [];           // 今の会話より前の会話（古い順）
+let archiveFor = null;      // archive がどの「今の会話」を除いて読んだものか
+let nextPage = null;
 const localPhotos = new Map(); // このページで送った写真（画面に出すだけ。開き直すと「写真」の印になる）
 
 function fmtTime(at) {
@@ -370,29 +379,46 @@ function renderBody(el, text) {
   });
 }
 
+// 写真は見える場所まで来てから取りに行く（一枚ずつ過去の会話を読むので）
+const photoWatcher = "IntersectionObserver" in window ? new IntersectionObserver((seen) => {
+  for (const s of seen) if (s.isIntersecting) { photoWatcher.unobserve(s.target); s.target.loadPhoto(); }
+}, { rootMargin: "400px" }) : null;
+
+function diaryPhoto(m) {
+  const img = document.createElement("img");
+  img.alt = "日記の写真";
+  img.loadPhoto = () => fetchPhoto(`session=${encodeURIComponent(m.session)}&event=${encodeURIComponent(m.id)}`)
+    .then((url) => { img.src = url; })
+    .catch((e) => { // 前の作りの写真は読み返せない
+      const chip = document.createElement("div");
+      chip.className = "photochip"; chip.textContent = "（写真を送りました）";
+      img.replaceWith(chip);
+    });
+  if (photoWatcher) photoWatcher.observe(img); else img.loadPhoto();
+  return img;
+}
+
 function bubble(m) {
   const box = document.createElement("div");
   box.className = `msg ${m.who}`;
+  if (m.who === "helper") {
+    const who = document.createElement("span");
+    who.className = "who"; who.textContent = "福ちゃん";
+    box.append(who);
+  }
   const local = m.localPhoto || localPhotos.get(m.id);
   if (local) {
     const img = document.createElement("img");
-    img.src = local; img.alt = "送った写真";
+    img.src = local; img.alt = "日記の写真";
     box.append(img);
   } else if (m.photo) {
-    const chip = document.createElement("div");
-    chip.className = "photochip"; chip.textContent = "（写真を送りました）";
-    box.append(chip);
+    box.append(diaryPhoto(m));
   }
   if (m.text) {
     const body = document.createElement("div");
     body.className = "body";
     renderBody(body, m.text);
     box.append(body);
-  }
-  if (m.at) {
-    const t = document.createElement("time");
-    t.textContent = fmtTime(m.at);
-    box.append(t);
   }
   return box;
 }
@@ -403,27 +429,56 @@ function line(cls, text) {
   return d;
 }
 
+// 一つの会話を、順番どおりの発言の列にする。朝のひとこと（今朝の分は一番上に出ているので除く）も過去の分は日記に残す
+function itemsOf(part) {
+  const list = [];
+  const word = part.morning;
+  if (word && word.text !== shownMorning()?.word) list.push({ ...word, who: "helper", session: part.session, opens: true });
+  for (const m of part.messages) list.push({ ...m, session: part.session });
+  return list;
+}
+
+// 日記と、そのあとの福ちゃんの返事を一まとまりに。新しいまとまりが上
+function groups() {
+  const list = [...archive.flatMap(itemsOf), ...itemsOf({ session, messages: shown.messages, morning: shown.morning })];
+  if (waitingText) list.push(waitingText);
+  const out = [];
+  for (const m of list) {
+    if (m.who === "owner" || m.opens || !out.length) out.push([m]);
+    else out.at(-1).push(m);
+  }
+  return out.reverse();
+}
+
 function draw() {
   const talk = $("talk");
   talk.replaceChildren();
-  const list = [...shown.messages];
-  if (waitingText) list.push(waitingText);
-  if (!list.length && !shown.busy) talk.append(line("hello", "話しかけなくても大丈夫です。聞きたいことや、見せたい写真があればどうぞ。"));
-  for (const m of list) talk.append(bubble(m));
-  if (isThinking()) {
+  if (notice) talk.append(line("notice", notice));
+  if (shown.paused) talk.append(line("notice", "この会話はここまでです。次に書くと、新しいページから続きます。覚えたことはノートに残っています。"));
+  if (shown.failed) talk.append(line("notice", "福ちゃんの調子が悪いようです。少し待って、もう一度書いてください。"));
+  const all = groups();
+  if (!all.length && !shown.busy) talk.append(line("hello", "ここに日記と福ちゃんの返事が積もっていきます。写真だけ、一言だけでも大丈夫です。"));
+  const thinking = () => {
     const t = document.createElement("div");
     t.className = "thinking";
     t.innerHTML = "考え中<i>.</i><i>.</i><i>.</i>";
-    talk.append(t);
-  }
-  if (shown.paused) talk.append(line("notice", "この会話はここまでです。次に話しかけると、新しいページから続きます。覚えたことは棚に残っています。"));
-  if (shown.failed) talk.append(line("notice", "助手の調子が悪いようです。少し待って、もう一度話しかけてください。"));
-  if (notice) talk.append(line("notice", notice));
+    return t;
+  };
+  if (isThinking() && !all.length) talk.append(thinking());
+  all.forEach((group, i) => {
+    const entry = document.createElement("article");
+    entry.className = "entry";
+    if (group[0].at) {
+      const t = document.createElement("time");
+      t.textContent = fmtTime(group[0].at);
+      entry.append(t);
+    }
+    for (const m of group) entry.append(bubble(m));
+    if (i === 0 && isThinking()) entry.append(thinking());
+    talk.append(entry);
+  });
+  $("more").hidden = nextPage === null;
   $("send").disabled = isThinking();
-  if (followTalk) {
-    $("form").scrollIntoView({ block: "end" }); // 話している間だけ、会話の端についていく
-    if (!isThinking()) followTalk = false;
-  }
 }
 
 function isThinking() { return Boolean(waitingFor) || shown.busy; }
@@ -442,6 +497,7 @@ async function refresh(useSession) {
     if (serial !== pollSerial) return; // もっと新しい取得に任せる
     session = data.session;
     shown = data;
+    if (archiveFor !== session) loadDiary(); // はじめて開いた時と、新しい会話へ移った時
     if (waitingFor && data.messages.some((m) => m.id === waitingFor)) {
       if (waitingText?.localPhoto) localPhotos.set(waitingFor, waitingText.localPhoto);
       waitingFor = null;
@@ -465,6 +521,22 @@ async function refresh(useSession) {
     pollTimer = setTimeout(() => refresh(true), POLL_MS);
   }
 }
+
+// ---------- 前の会話の日記 ----------
+async function loadDiary(skip = 0) {
+  const asked = archiveFor = session;
+  try {
+    const data = await api(`do=diary&except=${encodeURIComponent(asked)}&skip=${skip}`);
+    if (asked !== session) return;
+    const older = [...data.sessions].reverse();
+    archive = skip ? [...older, ...archive] : older;
+    nextPage = data.next;
+    draw();
+  } catch (e) {
+    if (e.message !== "code" && !skip) archiveFor = null; // 次に開いた時にもう一度
+  }
+}
+$("more").onclick = () => { if (nextPage !== null) loadDiary(nextPage); };
 
 // ---------- 写真：ブラウザで縮めてから送る ----------
 let photoData = null; // base64（data: を除いたもの）
@@ -527,8 +599,7 @@ $("form").onsubmit = async (e) => {
   growText();
   clearPhoto();
   draw();
-  followTalk = true;
-  draw();
+  $("form").scrollIntoView({ block: "start" }); // 書いた日記はこのすぐ下に出る
 
   try {
     const sent = await api("do=say", {
@@ -538,7 +609,7 @@ $("form").onsubmit = async (e) => {
     });
     session = sent.session;
     waitingFor = sent.eventId || "sent";
-    if (sent.renewed) shown = { ...shown, messages: [], paused: false };
+    if (sent.renewed) shown = { ...shown, messages: [], morning: null, paused: false };
     refresh(true);
   } catch (err) {
     // 届かなかった言葉は入力欄に戻す
