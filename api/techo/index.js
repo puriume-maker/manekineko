@@ -137,7 +137,31 @@ async function talk(req, res) {
   const events = [];
   for await (const e of client.beta.sessions.events.list(sessionId, { limit: 1000 })) events.push(e);
   await settlePending(sessionId, events);
-  return res.status(200).json({ session: sessionId, ...readTalk(events) });
+  const nudged = await nudgeIfSilent(sessionId, events);
+  const talked = readTalk(events);
+  return res.status(200).json({ session: sessionId, ...talked, busy: talked.busy || nudged });
+}
+
+// 棚に書いただけで返事を出さずに終わることがある。店主の発言のあとに言葉が無いまま止まったら、一度だけ促す。
+// 促しは裏方の発言なので、次に見た時は「最後の発言が店主」ではなくなり、二度は送らない。
+async function nudgeIfSilent(sessionId, events) {
+  const last = (type) => events.findLastIndex((e) => e.type === type);
+  const said = events.findLastIndex((e) => e.type === "user.message");
+  if (said < 0) return false;
+  const texts = events[said].content.filter((b) => b.type === "text").map((b) => b.text);
+  if (texts.some((t) => t.startsWith(BACKSTAGE_MARK) || t.startsWith("【朝の定時起動"))) return false;
+  const replied = events.slice(said).some(
+    (e) => e.type === "agent.message" && e.content.some((b) => b.type === "text" && b.text.trim()),
+  );
+  const idle = last("session.status_idle");
+  if (replied || idle < said || events[idle].stop_reason?.type !== "end_turn") return false;
+  if (last("session.status_running") > idle) return false;
+  await client.beta.sessions.events
+    .send(sessionId, {
+      events: [{ type: "user.message", content: [{ type: "text", text: `${BACKSTAGE_MARK}店主への返事が出ていません。店主の言葉にひとこと日本語で答えてください。作業の話はしないでください。` }] }],
+    })
+    .catch((e) => console.error("nudge", e.status));
+  return true;
 }
 
 async function say(req, res) {
