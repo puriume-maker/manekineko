@@ -227,9 +227,9 @@ function drawFuda() {
     const price = document.createElement("b");
     price.textContent = `${it.price.toLocaleString("ja-JP")}円`;
     card.append(it.name, price);
-    if (it.left !== undefined) {
+    if (it.left === 0) { // 残り数は数えられないので出さない。売り切れだけ、店主が福ちゃんに話した時に出す
       const left = document.createElement("small");
-      left.textContent = it.left === 0 ? "売り切れ" : `のこり ${it.left}`;
+      left.textContent = "売り切れ";
       card.append(left);
     }
     box.append(card);
