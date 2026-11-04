@@ -131,6 +131,10 @@
   .aboutline { font-size: 14px; color: var(--sub); }
   .msg .body { white-space: pre-wrap; }
   .msg.owner img { display: block; width: 100%; margin-bottom: 8px; border: 6px solid var(--card); border-radius: 2px; box-shadow: 0 2px 7px rgba(60, 48, 20, 0.28); }
+  /* 二枚以上は二列に並べる（一枚の時は今までどおり全幅） */
+  .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+  .photos .photochip { grid-column: 1 / -1; }
+  .msg.owner .photos img { aspect-ratio: 1; object-fit: cover; margin-bottom: 0; border-width: 4px; background: var(--line); }
   .msg.helper { padding: 10px 13px; border-radius: 4px; background: var(--card); border-left: 4px solid var(--leaf); box-shadow: 0 1px 3px rgba(60, 48, 20, 0.22); }
   .msg.helper .who { display: block; font-size: 13px; color: var(--leaf); font-weight: 600; }
   .msg.comment { font-size: 16px; line-height: 1.6; padding: 2px 0 2px 11px; border-left: 3px solid var(--field); }
@@ -157,9 +161,10 @@
   /* 入力 */
   form { padding: 0 var(--pad) 8px; }
   #bottom { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
-  .preview { position: relative; display: inline-block; margin-bottom: 8px; }
-  .preview img { display: block; height: 96px; border-radius: 2px; }
-  .preview button { position: absolute; top: -8px; right: -8px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+  .preview { display: flex; flex-wrap: wrap; gap: 14px 12px; margin: 8px 0 10px; }
+  .preview div { position: relative; }
+  .preview img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 2px; }
+  .preview button { position: absolute; top: -8px; right: -8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
   .row { display: flex; gap: 8px; align-items: flex-end; }
   textarea {
     flex: 1; min-width: 0; font: inherit; resize: none; padding: 11px 13px; min-height: 84px; max-height: 40vh;
@@ -173,6 +178,7 @@
   .pick { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 12px; font-size: 16px; color: var(--leaf); background: var(--card); border: 1px dashed var(--leaf); border-radius: 4px; cursor: pointer; }
   .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
   .pick:focus-within { outline: 2px solid var(--leaf); }
+  .pick:has(input:disabled) { opacity: 0.45; cursor: default; }
 </style>
 </head>
 <body>
@@ -195,17 +201,14 @@
 
   <h2 class="diaryhead">今日の記録</h2>
   <form id="form">
-    <div class="preview" id="preview" hidden>
-      <img id="previewimg" alt="送る写真">
-      <button type="button" id="previewoff" aria-label="写真をやめる">×</button>
-    </div>
+    <div class="preview" id="preview" hidden></div>
     <div class="row">
       <textarea id="text" rows="3" placeholder="写真と一言。今日あったこと、なんでも" aria-label="今日の記録"></textarea>
       <button class="send" id="send" type="submit">書く</button>
     </div>
     <div class="tools" style="margin: 8px 0 0">
       <label class="pick">写真を撮る<input id="camera" type="file" accept="image/*" capture="environment"></label>
-      <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*"></label>
+      <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*" multiple></label>
     </div>
     <div class="waithint" id="sendhint" hidden>福ちゃんが考え中です。終わると書けます。</div>
   </form>
@@ -237,7 +240,8 @@ const $ = (id) => document.getElementById(id);
 const POLL_MS = 2500;
 const GIVE_UP_MS = 5 * 60 * 1000;
 const MAX_SIDE = 1280;
-const MAX_BASE64 = 4_000_000; // Vercel の本文上限 4.5MB の内側に収める
+const MAX_PHOTOS = 4;
+const MAX_BASE64 = 1_000_000; // 一枚の上限。4枚そろっても Vercel の本文上限 4.5MB の内側に収まる
 
 // ---------- 合言葉（index.html と同じ置き場所・同じヘッダ） ----------
 let shopCode = (() => { try { return localStorage.getItem("niwasaki_code") || ""; } catch (e) { return ""; } })();
@@ -382,7 +386,7 @@ let notice = "";
 let archive = [];           // 今の会話より前の会話（古い順）
 let archiveFor = null;      // archive がどの「今の会話」を除いて読んだものか
 let nextPage = null;
-const localPhotos = new Map(); // このページで送った写真（画面に出すだけ。開き直すと「写真」の印になる）
+const localPhotos = new Map(); // このページで送った写真の並び（画面に出すだけ。開き直すと履歴から読む）
 
 function fmtTime(at) {
   if (!at) return "";
@@ -403,10 +407,10 @@ const photoWatcher = "IntersectionObserver" in window ? new IntersectionObserver
   for (const s of seen) if (s.isIntersecting) { photoWatcher.unobserve(s.target); s.target.loadPhoto(); }
 }, { rootMargin: "400px" }) : null;
 
-function diaryPhoto(m) {
+function diaryPhoto(m, nth) {
   const img = document.createElement("img");
   img.alt = "記録の写真";
-  img.loadPhoto = () => fetchPhoto(`session=${encodeURIComponent(m.session)}&event=${encodeURIComponent(m.id)}`)
+  img.loadPhoto = () => fetchPhoto(`session=${encodeURIComponent(m.session)}&event=${encodeURIComponent(m.id)}${nth ? `&n=${nth}` : ""}`)
     .then((url) => { img.src = url; })
     .catch((e) => { // 前の作りの写真は読み返せない
       const chip = document.createElement("div");
@@ -425,13 +429,16 @@ function bubble(m) {
     who.className = "who"; who.textContent = "福ちゃん";
     box.append(who);
   }
-  const local = m.localPhoto || localPhotos.get(m.id);
-  if (local) {
-    const img = document.createElement("img");
-    img.src = local; img.alt = "記録の写真";
-    box.append(img);
-  } else if (m.photo) {
-    box.append(diaryPhoto(m));
+  const local = m.localPhotos || localPhotos.get(m.id);
+  const pictures = local
+    ? local.map((url) => { const img = document.createElement("img"); img.src = url; img.alt = "記録の写真"; return img; })
+    : Array.from({ length: m.photos || 0 }, (_, n) => diaryPhoto(m, n));
+  if (pictures.length === 1) box.append(pictures[0]);
+  else if (pictures.length) {
+    const grid = document.createElement("div");
+    grid.className = "photos";
+    grid.append(...pictures);
+    box.append(grid);
   }
   if (m.text) {
     const body = document.createElement("div");
@@ -650,7 +657,7 @@ async function refresh(useSession) {
     shown = data;
     if (archiveFor !== session) loadDiary(); // はじめて開いた時と、新しい会話へ移った時
     if (waitingFor && data.messages.some((m) => m.id === waitingFor)) {
-      if (waitingText?.localPhoto) localPhotos.set(waitingFor, waitingText.localPhoto);
+      if (waitingText?.localPhotos?.length) localPhotos.set(waitingFor, waitingText.localPhotos);
       waitingFor = null;
       waitingText = null;
     }
@@ -697,7 +704,7 @@ async function loadDiary(skip = 0, auto = false) {
 $("more").onclick = () => { if (nextPage !== null) loadDiary(nextPage); };
 
 // ---------- 写真：ブラウザで縮めてから送る ----------
-let photoData = null; // base64（data: を除いたもの）
+let picked = []; // 送る前の写真。{ url: 画面用の data URL, data: base64（data: を除いたもの） }
 
 async function shrink(file) {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -715,34 +722,51 @@ async function shrink(file) {
   }
 }
 
+// 送る前の写真を小さく並べる。一枚ずつ外せる
+function drawPicked() {
+  const box = $("preview");
+  box.replaceChildren();
+  picked.forEach((p, i) => {
+    const one = document.createElement("div");
+    const img = document.createElement("img");
+    img.src = p.url;
+    img.alt = `送る写真 ${i + 1}枚目`;
+    const off = document.createElement("button");
+    off.type = "button";
+    off.textContent = "×";
+    off.setAttribute("aria-label", `${i + 1}枚目の写真をやめる`);
+    off.onclick = () => { picked = picked.filter((x) => x !== p); drawPicked(); };
+    one.append(img, off);
+    box.append(one);
+  });
+  box.hidden = !picked.length;
+  $("camera").disabled = $("album").disabled = picked.length >= MAX_PHOTOS;
+}
+
 async function onPick(e) {
-  const file = e.target.files?.[0];
+  const files = [...(e.target.files || [])];
   e.target.value = "";
-  if (!file) return;
-  try {
-    const url = await shrink(file);
-    photoData = url.slice(url.indexOf(",") + 1);
-    $("previewimg").src = url;
-    $("preview").hidden = false;
-  } catch (err) {
-    notice = "この写真は開けませんでした。別の写真で試してみてください。";
-    draw();
+  let problem = "";
+  for (const file of files) {
+    if (picked.length >= MAX_PHOTOS) { problem = `写真は一度に${MAX_PHOTOS}枚までです。`; break; }
+    try {
+      const url = await shrink(file);
+      picked = [...picked, { url, data: url.slice(url.indexOf(",") + 1) }];
+      drawPicked();
+    } catch (err) {
+      problem = "開けない写真がありました。別の写真で試してみてください。";
+    }
   }
+  if (problem) { notice = problem; draw(); }
 }
 $("camera").onchange = onPick;
 $("album").onchange = onPick;
 
-function clearPhoto() {
-  photoData = null;
-  $("preview").hidden = true;
-  $("previewimg").removeAttribute("src");
-}
-$("previewoff").onclick = clearPhoto;
 
 // ---------- 送る ----------
 // 上の欄の記録も、投稿の下の返事も同じ道を通る。restore は届かなかった時に入力欄へ戻す
-async function sendWords({ text, photo = null, localPhoto = null, reply = null, restore }) {
-  waitingText = { who: "owner", text, photo: Boolean(photo), localPhoto, ...(reply ? { post: reply.post, comment: true, about: reply.about } : {}) };
+async function sendWords({ text, photos = [], reply = null, restore }) {
+  waitingText = { who: "owner", text, photos: photos.length, localPhotos: photos.map((p) => p.url), ...(reply ? { post: reply.post, comment: true, about: reply.about } : {}) };
   waitingFor = "sending";
   waitStart = Date.now();
   notice = "";
@@ -752,7 +776,7 @@ async function sendWords({ text, photo = null, localPhoto = null, reply = null, 
     const sent = await api("do=say", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text, photo, reply }),
+      body: JSON.stringify({ text, photos: photos.map((p) => p.data), reply }),
     });
     session = sent.session;
     waitingFor = sent.eventId || "sent";
@@ -769,19 +793,20 @@ async function sendWords({ text, photo = null, localPhoto = null, reply = null, 
 $("form").onsubmit = (e) => {
   e.preventDefault();
   const text = $("text").value.trim();
-  if ((!text && !photoData) || isThinking()) return;
+  if ((!text && !picked.length) || isThinking()) return;
   if (!shopCode) { showCodeNeeded(); $("shopcode").focus(); return; }
-  const localPhoto = photoData ? $("previewimg").src : null;
-  const photo = photoData;
+  const photos = picked;
   $("text").value = "";
   growText();
-  clearPhoto();
+  picked = [];
+  drawPicked();
   sendWords({
-    text, photo, localPhoto,
+    text, photos,
     restore: () => {
       $("text").value = text;
       growText();
-      if (photo) { photoData = photo; $("previewimg").src = localPhoto; $("preview").hidden = false; }
+      picked = photos;
+      drawPicked();
     },
   });
   $("form").scrollIntoView({ block: "start" }); // 書いた記録はこのすぐ下に出る

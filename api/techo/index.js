@@ -1,11 +1,11 @@
 // お店の手帳の裏側：助手（Managed Agents）との今の会話、写メ、記憶の棚。
 //   GET  /api/techo?do=talk[&session=sesn_…]  今の会話（なければ新しく始める）
-//   POST /api/techo?do=say   {text, photo, reply}  発言を送る（photo は JPEG の base64。reply は {post, about}：どの投稿への返事か）
-//   GET  /api/techo?do=diary[&except=sesn_…&skip=N]  今の会話より前の日記と返事（新しい会話から順に数回分）
+//   POST /api/techo?do=say   {text, photos, reply}  発言を送る（photos は JPEG の base64 の並び、最大4枚。reply は {post, about}：どの投稿への返事か）
+//   GET  /api/techo?do=diary[&except=sesn_…&skip=N]  今の会話より前の記録と返事（新しい会話から順に数回分）
 //   GET  /api/techo?do=shelf                  記憶の棚の中身
 //   GET  /api/techo?do=mornings               朝の一覧（最近7日、写真の番号とひとこと）
 //   GET  /api/techo?do=photo&file=file_…      カメラの係の写真（朝の一覧に載っているものだけ）
-//   GET  /api/techo?do=photo&session=…&event=…  日記の写真（この福ちゃんの会話にあるものだけ）
+//   GET  /api/techo?do=photo&session=…&event=…[&n=0]  記録の写真（この福ちゃんの会話にあるものだけ。n は何枚目か）
 //   GET  /api/techo?do=mise                   店先の猫が読む札とセリフ（棚の mise.json を検証して返す）
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import fs from "node:fs";
@@ -22,7 +22,8 @@ const FIRST_DAY_CUE = `${BACKSTAGE_MARK}店主がはじめて手帳を開きま�
 const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md"]); // 福ちゃんと猫が書くもの。これだけなら棚はまだ空とみなす
 const DIARY_SESSIONS = 10; // 一度に読む過去の会話の数
 const DIARY_SCAN = 200;
-const MAX_PHOTO_BASE64 = 4_200_000; // Vercel の本文上限 4.5MB の内側
+const MAX_PHOTO_BASE64 = 4_200_000; // 全部の写真の合計。Vercel の本文上限 4.5MB の内側
+const MAX_PHOTOS = 4;
 const MAX_TEXT = 8000;
 const MAX_ABOUT = 240;
 const MAX_MORNINGS = 7;
@@ -110,6 +111,8 @@ async function settlePending(sessionId, events) {
   if (replies.length) await client.beta.sessions.events.send(sessionId, { events: replies }).catch((e) => console.error("settle", e.status));
 }
 
+const isOwnImage = (b) => b.type === "image" && b.source?.type === "base64";
+
 // 「【返事先:番号】説明への返事です。」を番号と説明に分ける
 function readReplyMark(texts) {
   const t = texts.find((x) => x.startsWith(REPLY_MARK));
@@ -139,6 +142,7 @@ function readTalk(events) {
       if (texts.some((t) => t.startsWith(BACKSTAGE_MARK) || t.startsWith("【朝の定時起動"))) continue; // 後ろは印を付ける前の朝の合図
       ownerSpoke = true;
       const reply = readReplyMark(texts);
+      const hasPhoto = texts.some((t) => t.startsWith(PHOTO_MARK));
       thread = reply ? reply.post : e.id;
       messages.push({
         id: e.id,
@@ -146,7 +150,8 @@ function readTalk(events) {
         post: thread,
         ...(reply ? { comment: true, about: reply.about } : {}),
         text: texts.filter((t) => !t.startsWith(PHOTO_MARK) && !t.startsWith(DATE_MARK) && !t.startsWith(REPLY_MARK)).join("\n"),
-        photo: texts.some((t) => t.startsWith(PHOTO_MARK)),
+        photo: hasPhoto,
+        photos: hasPhoto ? Math.max(1, e.content.filter(isOwnImage).length) : 0, // 前の作りの写真は履歴に絵が無いが、一枚として扱う
         at: e.processed_at,
       });
     } else if (e.type === "agent.message") {
@@ -205,16 +210,19 @@ async function nudgeIfSilent(sessionId, events) {
 
 async function say(req, res) {
   const text = String(req.body?.text || "").trim().slice(0, MAX_TEXT);
-  const photo = typeof req.body?.photo === "string" ? req.body.photo : "";
-  if (!text && !photo) return res.status(400).json({ error: "empty" });
-  if (photo.length > MAX_PHOTO_BASE64) return res.status(413).json({ error: "photo too large" });
+  // photo（一枚）は、開いたままの前の画面から届く時のため
+  const photos = Array.isArray(req.body?.photos) ? req.body.photos : req.body?.photo ? [req.body.photo] : [];
+  if (photos.some((p) => typeof p !== "string" || !p)) return res.status(400).json({ error: "bad photo" });
+  if (!text && !photos.length) return res.status(400).json({ error: "empty" });
+  if (photos.length > MAX_PHOTOS) return res.status(400).json({ error: "too many photos" });
+  if (photos.reduce((sum, p) => sum + p.length, 0) > MAX_PHOTO_BASE64) return res.status(413).json({ error: "photo too large" });
   const replyPost = req.body?.reply ? String(req.body.reply.post || "") : "";
   if (req.body?.reply && !/^[\w-]{1,100}$/.test(replyPost)) return res.status(400).json({ error: "bad reply" });
   // 説明は画面から届く文なので、印のかっこと改行を落としてから助手に渡す
   const about = String(req.body?.reply?.about || "この投稿").replace(/[【】\p{Cc}]/gu, " ").trim().slice(0, MAX_ABOUT);
 
-  if (photo) {
-    const bytes = Buffer.from(photo, "base64");
+  for (const p of photos) {
+    const bytes = Buffer.from(p, "base64");
     if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return res.status(400).json({ error: "not a jpeg" });
   }
 
@@ -222,10 +230,15 @@ async function say(req, res) {
   const deliver = async (sessionId) => {
     const today = new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric", weekday: "long" });
     const content = [{ type: "text", text: `${DATE_MARK}${today}` }];
-    if (photo) {
-      // 写真は発言に直接添える。福ちゃんが必ず見られて、手帳はこの履歴から写真を読み返せる
-      content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: photo } });
-      content.push({ type: "text", text: `${PHOTO_MARK}店主から写真が届きました。添えてある写真を見てください。` });
+    if (photos.length) {
+      // 写真は一つの発言に全部添える。福ちゃんが必ず全部見られて、手帳はこの履歴から写真を読み返せる
+      for (const p of photos) content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: p } });
+      content.push({
+        type: "text",
+        text: photos.length === 1
+          ? `${PHOTO_MARK}店主から写真が届きました。添えてある写真を見てください。`
+          : `${PHOTO_MARK}店主から写真が${photos.length}枚届きました。添えてある写真を全部見てください。`,
+      });
     }
     if (replyPost) content.push({ type: "text", text: `${REPLY_MARK}${replyPost}】${about}${REPLY_END}` });
     if (text) content.push({ type: "text", text });
@@ -244,7 +257,7 @@ async function say(req, res) {
   }
 }
 
-// 今の会話より前の日記。会話ごとに読むので、写真の多い人でも一度に読むのは数回分だけ
+// 今の会話より前の記録。会話ごとに読むので、写真の多い人でも一度に読むのは数回分だけ
 async function diary(req, res) {
   const c = ids();
   const except = String(req.query.except || "");
@@ -317,11 +330,12 @@ async function mornings(req, res) {
 // 上げたファイルは Files API から取り出せない（生成物だけが取り出せる決まり）ので、
 // 発言に添えた写真を、その会話の履歴から読む。
 //   file：カメラの係の写真。朝の一覧にある番号しか受けつけない
-//   session と event：日記の写真。この福ちゃんの会話にあるものしか受けつけない
+//   session と event（と n）：記録の写真。この福ちゃんの会話にあるものしか受けつけない
 async function photo(req, res) {
   const file = String(req.query.file || "");
   const asked = String(req.query.session || "");
   const eventId = String(req.query.event || "");
+  const nth = Math.max(0, Number(req.query.n) || 0);
   let sessionId;
   if (file) {
     sessionId = (await morningSessions()).find((s) => s.metadata?.photo_file_id === file)?.id;
@@ -336,7 +350,7 @@ async function photo(req, res) {
   for await (const e of client.beta.sessions.events.list(sessionId, { types: ["user.message"], limit: 100 })) {
     const texts = e.content.filter((b) => b.type === "text").map((b) => b.text);
     const match = file ? texts.some((t) => t.startsWith(BACKSTAGE_MARK)) : e.id === eventId;
-    image = match ? e.content.find((b) => b.type === "image" && b.source?.type === "base64") : null;
+    image = match ? e.content.filter(isOwnImage)[file ? 0 : nth] : null;
     if (image) break;
   }
   if (!image) return res.status(404).json({ error: "no photo" });
