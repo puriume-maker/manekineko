@@ -60,11 +60,15 @@
   }
   @keyframes breeze { 50% { transform: scaleY(1.09) skewX(0.6deg); } }
   main { padding-top: clamp(56px, 10vmin, 104px) !important; }
-  .leaf { position: fixed; top: -30px; width: 14px; height: 6px; background: #3f7d4e; border-radius: 0 70% 0 70%; z-index: 0; animation: drift 13s linear infinite; }
-  .leaf.b { left: 22%; animation-delay: -4s; animation-duration: 16s; }
-  .leaf.c { left: 74%; animation-delay: -9s; }
-  .leaf.a { left: 48%; }
-  @keyframes drift { to { transform: translate(90px, 105vh) rotate(540deg); } }
+  .hana { position: fixed; top: -50px; width: clamp(26px, 4.6vmin, 44px); aspect-ratio: 1; z-index: 0; animation: drift 12s linear infinite;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 5 5' shape-rendering='crispEdges'%3E%3Cpath fill='%23f5c518' d='M1 0h3v1h1v3h-1v1h-3v-1h-1v-3h1z'/%3E%3Cpath fill='%23fff3a8' d='M2 0h1v5h-1zM0 2h5v1h-5z'/%3E%3Cpath fill='%23e08a1e' d='M2 2h1v1h-1z'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .hana.a { left: 8%; }
+  .hana.b { left: 26%; animation-delay: -5s; animation-duration: 15s; }
+  .hana.c { left: 44%; animation-delay: -9s; animation-duration: 13s; }
+  .hana.d { left: 62%; animation-delay: -2s; animation-duration: 16s; }
+  .hana.e { left: 78%; animation-delay: -7s; }
+  .hana.f { left: 90%; animation-delay: -11s; animation-duration: 14s; }
+  @keyframes drift { to { transform: translate(70px, 110vh) rotate(360deg); } }
   .bubble.pop { animation: pop 0.28s ease-out; }
   @keyframes pop { 0% { transform: scale(0.94); } 70% { transform: scale(1.02); } }
   .cat.talking svg { animation: rock 0.9s ease-in-out infinite; transform-origin: 50% 100%; }
@@ -128,7 +132,7 @@
 </head>
 <body>
 <div class="awning" aria-hidden="true"></div>
-<i class="leaf a"></i><i class="leaf b"></i><i class="leaf c"></i>
+<i class="hana a"></i><i class="hana b"></i><i class="hana c"></i><i class="hana d"></i><i class="hana e"></i><i class="hana f"></i>
 <main>
   <section class="shop">
     <div class="cat" id="cat"></div>
