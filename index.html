@@ -413,7 +413,7 @@ function judge(w, gray, now) {
   const ratio = changed / gray.length;
   if (ratio > LIGHT_RATIO) { w.bg = Float32Array.from(gray); w.lastMoved = now; return null; }
   const present = ratio > PRESENT_RATIO;
-  if (present && now - w.lastMoved > STILL_MS) { // 前にいた人の跡や光の変化。景色として覚え直し、次の人に気づけるようにする
+  if (present && !w.stopped && now - w.lastMoved > STILL_MS) { // 前にいた人の跡や光の変化。景色として覚え直し、次の人に気づけるようにする（立ち止まった人はじっとしていてよい）
     w.bg = Float32Array.from(gray);
     w.seen = false; w.stopped = false;
     return null;
@@ -424,7 +424,8 @@ function judge(w, gray, now) {
   if (present) {
     w.lastSeen = now;
     if (!w.seen) { w.seen = true; w.since = now; w.stopped = false; return "pass"; }
-    if (!w.stopped && now - w.since >= STAY_MS && now - w.lastMoved < MOVED_RECENT) { w.stopped = true; return "stop"; } // 動きのない変化には話しかけない
+    const cameMoving = w.lastMoved - w.since >= FRAME_MS; // 現れたあとにも動いた＝人。一枚だけ変わって止まったものは景色
+    if (!w.stopped && now - w.since >= STAY_MS && (cameMoving || now - w.lastMoved < MOVED_RECENT)) { w.stopped = true; return "stop"; } // 来てからじっと見ている人にも話しかける（11/6 実家で黙った）
     return null;
   }
   if (w.seen && now - w.lastSeen > GONE_MS) {
