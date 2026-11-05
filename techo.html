@@ -414,9 +414,12 @@ $("tabnote").onclick = () => setTab("note");
 $("tabshop").onclick = () => setTab("shop");
 
 // 文字を打っている間は、下の帯を隠す（キーボードの上に浮かないように）
-const isTyping = (el) => el.matches?.("textarea, input:not([type=file])");
-document.addEventListener("focusin", (e) => { if (isTyping(e.target)) document.body.classList.add("typing"); });
-document.addEventListener("focusout", (e) => { if (isTyping(e.target)) document.body.classList.remove("typing"); });
+const isTyping = (el) => Boolean(el && el.matches?.("textarea, input:not([type=file])") && el.isConnected);
+// 合図（focusout）が来ないことがある（送ったあとに入力欄ごと消えた時など、11/6 帯が消えたまま）ので、今の状態を見て決める
+const syncTyping = () => document.body.classList.toggle("typing", isTyping(document.activeElement));
+document.addEventListener("focusin", syncTyping);
+document.addEventListener("focusout", () => setTimeout(syncTyping, 0));
+setInterval(syncTyping, 500);
 
 // 店先の猫へのリンク。合言葉ではなく、店先だけの鍵を渡す。別のタブで開くので「戻る」で手帳に来られない
 async function loadFrontLink() {
@@ -1102,15 +1105,19 @@ const hasDraft = () => Boolean($("text").value.trim() || picked.length);
 
 function setWrite(open, focus = false) {
   $("writepanel").hidden = !open;
-  $("writeopen").hidden = open;
   $("writeopen").setAttribute("aria-expanded", String(open));
-  $("writelabel").textContent = hasDraft() ? "今日の記録を書く（書きかけあり）" : "今日の記録を書く";
+  // 帯は消さない（開いたまま下へ行くと書く道が無くなる、11/6）。開いている間は入力欄へ戻る帯になる
+  $("writelabel").textContent = open ? "入力欄へもどる" : hasDraft() ? "今日の記録を書く（書きかけあり）" : "今日の記録を書く";
   if (open) {
     growText();
     if (focus) { $("text").focus(); $("writepanel").scrollIntoView({ block: "start" }); }
   }
 }
-$("writeopen").onclick = () => { writeClosedByHand = false; writeAutoOpened = false; setWrite(true, true); };
+$("writeopen").onclick = () => {
+  writeClosedByHand = false; writeAutoOpened = false;
+  if (!$("writepanel").hidden) { $("writepanel").scrollIntoView({ block: "start", behavior: "smooth" }); $("text").focus(); return; }
+  setWrite(true, true);
+};
 $("writeclose").onclick = () => { writeClosedByHand = true; writeAutoOpened = false; setWrite(false); };
 
 // 初日の聞き取りの間と、まだ何も無い時は、すぐ答えられるように開いておく
