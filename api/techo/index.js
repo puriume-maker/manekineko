@@ -12,6 +12,10 @@
 //   POST /api/techo?do=eeyo    {session, event, n, on}  写真を店先に出してよいかを切り替える
 //   POST /api/techo?do=delete  {session, post}  投稿を消す
 //   GET  /api/techo?do=deletejob&job=sesn_…   福ちゃんのノートの片付けが済んだか
+//   GET  /api/techo?do=serifu                 今日の店先のセリフの一覧（店主の確認用）
+//   POST /api/techo?do=serifudel {kind, text} セリフを一つ消す。kind は greet/chat/bye か写真の番号
+//   POST /api/techo?do=serifuredo             消した分を福ちゃんに書き足してもらう
+//   GET  /api/techo?do=serifujob&job=sesn_…   書き足しが済んだか
 // ★だけは店先の鍵でも読める。それ以外は合言葉が要る。
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import crypto from "node:crypto";
@@ -27,7 +31,7 @@ const REPLY_MARK = "【返事先:"; // どの投稿への返事かを助手に�
 const REPLY_END = "への返事です。";
 const FIRST_DAY_CUE = `${BACKSTAGE_MARK}店主がはじめて手帳を開きました。棚は空です。短いあいさつのあとで、初日の聞き取りの最初の一つだけを聞いてください。店主に見せる言葉は日本語で、作業の話はしないでください。`;
 const INTERVIEW_ANSWERS = 3; // 初日の聞き取りの問いの数。この数だけ答えるまで、手帳は記録欄を開いておく
-const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md", "/mise_shashin.md"]); // 福ちゃんと猫が書くもの。これだけなら棚はまだ空とみなす
+const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md", "/mise_shashin.md", "/mise_keshita.md"]); // 福ちゃんと猫が書くもの。これだけなら棚はまだ空とみなす
 const DIARY_SESSIONS = 10; // 一度に読む過去の会話の数
 const DIARY_SCAN = 200;
 const MAX_PHOTO_BASE64 = 4_200_000; // 全部の写真の合計。Vercel の本文上限 4.5MB の内側
@@ -40,6 +44,10 @@ const MISE_PATH = "/mise.json";
 const EMPTY_MISE = { date: null, items: [], lines: { greet: [], bye: [], chat: [] }, photos: [] };
 const SHASHIN_PATH = "/mise_shashin.md"; // 「ええよ」の一覧。手帳が書き、福ちゃんは読むだけ。本当の印は会話の metadata にある（福ちゃんには触れない）
 const SHASHIN_HEAD = "# 店先に出してよい写真（店主が「ええよ」を押したもの。手帳が書くノートなので書き換えない）";
+const KESHITA_PATH = "/mise_keshita.md"; // 店主が消したセリフ。手帳が書き、福ちゃんは読むだけ。ここにある言葉は店先に出さない
+const KESHITA_HEAD = "# 店主が消した店先のセリフ（手帳が書くノートなので書き換えない。同じ言葉も言い換えも mise.json に書かない）";
+const MAX_KESHITA = 200;
+const LINE_KINDS = ["greet", "chat", "bye"];
 const MAX_FRONT_PHOTOS = 8;
 const META_KEYS = 5; // 印ひと種類に使う metadata の数。合計で16個の上限の内側に収める
 const META_LEN = 500; // metadata の値の上限 512 の内側
@@ -87,7 +95,7 @@ function pack(prefix, list) {
   return out;
 }
 const goneOf = (s) => new Set(unpack(s?.metadata, "gone")); // 消した投稿の番号
-const isHidden = (s) => s.metadata?.kind === "yume" || s.metadata?.kind === "keshi"; // 夢と片付けは店主と話す場所ではない
+const isHidden = (s) => ["yume", "keshi", "serifu"].includes(s.metadata?.kind); // 夢と片付けと書き足しは店主と話す場所ではない
 
 async function ourSession(sessionId) {
   if (!/^sesn_\w+$/.test(sessionId)) return null;
@@ -464,8 +472,8 @@ function checkMise(text) {
   }
   // 写真は福ちゃんが選んだ番号とひとこと。番号は「ええよ」の一覧と照らすまで信じない（frontPhotos）
   const photos = (Array.isArray(d.photos) ? d.photos : [])
-    .filter((p) => p && PHOTO_ID.test(p.id) && shortText(p.say, 60))
-    .map((p) => ({ id: p.id, say: p.say }));
+    .filter((p) => p && PHOTO_ID.test(p.id))
+    .map((p) => ({ id: p.id, say: shortText(p.say, 60) ? p.say : null })); // ひとことが無ければ猫は決まり文句で出す
   return { date: d.date, items, lines: { greet: lines(d.lines.greet), bye: lines(d.lines.bye), chat: lines(d.lines.chat, 8) }, photos };
 }
 
@@ -507,10 +515,147 @@ async function mise(req, res) {
   const store = ids().store;
   const note = await findNote(store, MISE_PATH);
   const full = note && await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
-  const data = full ? checkMise(full.content ?? "") : EMPTY_MISE;
+  const data = withoutKeshita(full ? checkMise(full.content ?? "") : EMPTY_MISE, (await readKeshita(store)).rows);
   const photos = await frontPhotos(data.photos, full ? Date.parse(full.updated_at) : 0);
   res.setHeader("cache-control", "no-store");
   return res.status(200).json({ ...data, photos });
+}
+
+// ---------- 今日のセリフの確認 ----------
+// 店主が嫌なセリフだけ消す。承認は要らない（何もしなければそのまま店先に出る）
+async function readKeshita(store) {
+  const note = await findNote(store, KESHITA_PATH);
+  const full = note && await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
+  const rows = [];
+  for (const line of (full?.content ?? "").split("\n")) {
+    const m = /^- (未|済) \/ (\S+) \/ (.*)$/.exec(line);
+    if (m) rows.push({ waiting: m[1] === "未", kind: m[2], text: m[3] });
+  }
+  return { note, rows };
+}
+
+async function writeKeshita(store, note, rows) {
+  const content = `${KESHITA_HEAD}\n\n${rows.slice(-MAX_KESHITA).map((r) => `- ${r.waiting ? "未" : "済"} / ${r.kind} / ${r.text}`).join("\n")}\n`;
+  if (note) await client.beta.memoryStores.memories.update(note.id, { memory_store_id: store, content });
+  else await client.beta.memoryStores.memories.create(store, { path: KESHITA_PATH, content });
+}
+
+// 福ちゃんが同じ言葉をまた書いても、ここで止める（言い換えは止められない。そちらは福ちゃんへの指示で頼む）
+function withoutKeshita(data, rows) {
+  const no = new Set(rows.map((r) => r.text));
+  const keep = (a) => a.filter((t) => !no.has(t));
+  return {
+    ...data,
+    lines: { greet: keep(data.lines.greet), bye: keep(data.lines.bye), chat: keep(data.lines.chat) },
+    photos: data.photos.map((p) => (no.has(p.say) ? { ...p, say: null } : p)),
+  };
+}
+
+async function runningSerifuJob() {
+  const c = ids();
+  let seen = 0;
+  for await (const s of client.beta.sessions.list({ agent_id: c.agent, memory_store_id: c.store, order: "desc", limit: 20 })) {
+    if (++seen > 20) break;
+    if (s.metadata?.kind === "serifu") return s.id;
+  }
+  return null;
+}
+
+async function serifu(req, res) {
+  const { store } = ids();
+  const note = await findNote(store, MISE_PATH);
+  const full = note && await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
+  const { rows } = await readKeshita(store);
+  const data = withoutKeshita(full ? checkMise(full.content ?? "") : EMPTY_MISE, rows);
+  const photos = (await frontPhotos(data.photos, full ? Date.parse(full.updated_at) : 0)).filter((p) => p.say);
+  res.setHeader("cache-control", "no-store");
+  return res.status(200).json({ date: data.date, lines: data.lines, photos, waiting: rows.filter((r) => r.waiting).length, job: await runningSerifuJob() });
+}
+
+async function serifuDel(req, res) {
+  const { kind, text } = req.body || {};
+  if (typeof text !== "string" || !text || !(LINE_KINDS.includes(kind) || PHOTO_ID.test(kind))) return res.status(400).json({ error: "bad" });
+  const { store } = ids();
+  const note = await findNote(store, MISE_PATH);
+  if (!note) return res.status(404).json({ error: "no line" });
+  // 福ちゃんが同時に書いていたら、読み直してもう一度だけ
+  for (let tries = 0; ; tries++) {
+    const full = await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
+    let d;
+    try { d = JSON.parse(full.content ?? ""); } catch { return res.status(404).json({ error: "no line" }); }
+    if (LINE_KINDS.includes(kind)) {
+      if (!Array.isArray(d.lines?.[kind]) || !d.lines[kind].includes(text)) return res.status(404).json({ error: "no line" });
+      d.lines[kind] = d.lines[kind].filter((t) => t !== text);
+    } else {
+      const p = (Array.isArray(d.photos) ? d.photos : []).find((x) => x?.id === kind && x.say === text);
+      if (!p) return res.status(404).json({ error: "no line" });
+      p.say = null;
+    }
+    try {
+      await client.beta.memoryStores.memories.update(note.id, {
+        memory_store_id: store,
+        content: JSON.stringify(d),
+        precondition: { type: "content_sha256", content_sha256: full.content_sha256 },
+      });
+      break;
+    } catch (e) {
+      if (e.status !== 409 || tries) throw e;
+    }
+  }
+  const { note: keshita, rows } = await readKeshita(store);
+  await writeKeshita(store, keshita, [...rows, { waiting: true, kind, text }]);
+  return res.status(200).json({ ok: true });
+}
+
+function serifuCue(rows) {
+  const count = (kind) => rows.filter((r) => r.kind === kind).length;
+  const needs = LINE_KINDS.filter(count).map((k) => `${k} を${count(k)}個`);
+  const photos = rows.filter((r) => !LINE_KINDS.includes(r.kind)).map((r) => r.kind);
+  if (photos.length) needs.push(`photos の次の番号の say：${photos.join(" ")}`);
+  return [
+    `${BACKSTAGE_MARK}店主が今日の店先のセリフを見て、いくつか消しました。店主はいません。`,
+    "棚の全ノートと mise.json を読み、消した分だけ mise.json に書き足してください。mise.json はそのあと店先の猫が読みます。",
+    `書き足す分：${needs.join("、")}`,
+    "店主が消した言葉（棚の mise_keshita.md にも全部あります）：",
+    ...rows.map((r) => `- ${r.text}`),
+    "- 消した言葉と同じ言葉、言い換え、同じ中身の話は書かない。今の mise.json に残っているセリフとも重ねない",
+    "- 残っているセリフ、品、日付、他の写真のひとことは一字も変えない",
+    "- 書く決まりは「店先の猫」のとおり（秋田弁、30字以内、棚に根拠のあることだけ）。根拠のある話がなくて書けない分は、無理に作らず少なくてかまいません",
+    "- mise_keshita.md は書き換えない。店主に見せる言葉はいりません。終わったら「済みました」とだけ書いてください",
+  ].join("\n");
+}
+
+async function serifuRedo(req, res) {
+  const c = ids();
+  const running = await runningSerifuJob(); // 押し直しても二つ起こさない
+  if (running) return res.status(200).json({ job: running });
+  const waiting = (await readKeshita(c.store)).rows.filter((r) => r.waiting);
+  if (!waiting.length) return res.status(400).json({ error: "nothing" });
+  const job = await client.beta.sessions.create({
+    agent: c.agent,
+    environment_id: c.environment,
+    budget: BUDGET,
+    title: "セリフの書き足し",
+    metadata: { kind: "serifu" },
+    resources: [{ type: "memory_store", memory_store_id: c.store, access: "read_write", instructions: "店主のノート。" }],
+    initial_events: [{ type: "user.message", content: [{ type: "text", text: serifuCue(waiting) }] }],
+  });
+  return res.status(200).json({ job: job.id });
+}
+
+async function finishSerifu(s) {
+  const { store } = ids();
+  const { note, rows } = await readKeshita(store);
+  if (rows.some((r) => r.waiting)) await writeKeshita(store, note, rows.map((r) => ({ ...r, waiting: false })));
+  await client.beta.sessions.delete(s.id).catch((e) => console.error("serifu delete", e.status));
+}
+
+async function serifuJob(req, res) {
+  const s = await ourSession(String(req.query.job || ""));
+  if (!s || s.metadata?.kind !== "serifu") return res.status(200).json({ done: true });
+  if (!(await keshiEnded(s))) return res.status(200).json({ done: false });
+  await finishSerifu(s);
+  return res.status(200).json({ done: true });
 }
 
 // 位置情報などを落とす：JPEG の中の APP（EXIF、XMP、ICC など）とコメント、終わりの後ろのデータを捨てて、絵だけを残す
@@ -736,7 +881,9 @@ async function sweepKeshi() {
     let seen = 0;
     for await (const s of client.beta.sessions.list({ agent_id: c.agent, memory_store_id: c.store, order: "desc", limit: 20 })) {
       if (++seen > 20) break;
-      if (s.metadata?.kind === "keshi" && Date.now() - Date.parse(s.created_at) > KESHI_SWEEP_AFTER && (await keshiEnded(s))) await finishKeshi(s);
+      const late = Date.now() - Date.parse(s.created_at) > KESHI_SWEEP_AFTER;
+      if (late && s.metadata?.kind === "keshi" && (await keshiEnded(s))) await finishKeshi(s);
+      if (late && s.metadata?.kind === "serifu" && (await keshiEnded(s))) await finishSerifu(s);
     }
   } catch (e) {
     console.error("sweep", e.status);
@@ -761,6 +908,10 @@ export default async function handler(req, res) {
     if (action === "eeyo" && req.method === "POST") return await eeyo(req, res);
     if (action === "delete" && req.method === "POST") return await removePost(req, res);
     if (action === "deletejob" && req.method === "GET") return await deleteJob(req, res);
+    if (action === "serifu" && req.method === "GET") return await serifu(req, res);
+    if (action === "serifudel" && req.method === "POST") return await serifuDel(req, res);
+    if (action === "serifuredo" && req.method === "POST") return await serifuRedo(req, res);
+    if (action === "serifujob" && req.method === "GET") return await serifuJob(req, res);
     return res.status(404).json({ error: "unknown" });
   } catch (e) {
     console.error("techo", action, e.status, e.message); // 鍵は載らない（状態コードと文面だけ）

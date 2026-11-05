@@ -135,7 +135,10 @@
   body.gallery .shop > .cat { width: clamp(84px, 17vmin, 170px); background: var(--bg); border-radius: 16px; padding: 8px; }
   body.gallery .side { flex: none; width: auto; max-width: min(60vw, 560px); }
   body.gallery .bubble { font-size: clamp(16px, 2.6vmin, 26px); padding: 8px 14px; border-width: 3px; }
-  body.gallery .fuda { display: none; }
+  /* 値札は隅に小さく残す */
+  body.gallery .fuda { position: fixed; top: 10px; left: 10px; max-width: 46vw; justify-content: flex-start; gap: 6px; }
+  body.gallery .fuda div { transform: none; animation: none; padding: 3px 9px; border-width: 2px; border-radius: 6px; font-size: clamp(14px, 2.1vmin, 20px); }
+  body.gallery .fuda b { display: inline; margin-left: 0.4em; font-size: 1em; }
   body.gallery .foot { position: fixed; z-index: 6; left: 0; right: 0; bottom: 0; padding: 4px 16px; background: rgba(30, 32, 40, 0.72); color: #e9e4d8; }
   body.gallery .foot button { color: #e9e4d8; }
 

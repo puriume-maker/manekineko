@@ -174,6 +174,14 @@
   .delask button { min-height: 40px; padding: 0 14px; font: inherit; font-size: 15px; border-radius: 4px; cursor: pointer; }
   .delyes { color: #fff; background: var(--warn); border: 0; }
   .delno { color: var(--ink); background: none; border: 1px solid var(--field); }
+  /* 今日のセリフ */
+  .serifuhead { margin: 10px 0 2px; font-size: 14px; color: var(--leaf); font-weight: 600; }
+  .serifurow { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px dashed var(--line); font-size: 16px; line-height: 1.5; }
+  .serifurow span { flex: 1; min-width: 0; }
+  .serifurow img { flex: none; width: 44px; height: 44px; object-fit: cover; border-radius: 2px; background: var(--line); }
+  .serifurow button { flex: none; width: 40px; height: 40px; font: inherit; color: var(--sub); background: none; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
+  .serifuredo { margin-top: 10px; min-height: 44px; padding: 0 14px; font: inherit; font-size: 16px; color: #fff; background: var(--leaf); border: 0; border-radius: 4px; cursor: pointer; }
+  .serifuredo:disabled, .serifurow button:disabled { opacity: 0.45; cursor: default; }
   .tomise { margin: 12px var(--pad) 0; text-align: right; font-size: 13px; }
   .tomise a { color: var(--sub); }
 
@@ -261,6 +269,10 @@
         <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
       </div>
     </details>
+    <details class="fold" id="serifu">
+      <summary>今日のセリフ</summary>
+      <div class="foldbody" id="serifubody"><p class="quiet">開くと読み込みます。</p></div>
+    </details>
     <p class="tomise" id="tomisep" hidden><a id="tomise" target="_blank" rel="noopener noreferrer">店先の猫をひらく</a></p>
   </div>
 </main>
@@ -319,7 +331,7 @@ async function request(query, opts = {}) {
   if (!codeAccepted) { // 通ったら合言葉欄はしまう
     codeAccepted = true;
     $("codefold").open = false;
-    $("bottom").insertBefore($("codefold"), $("tomisep"));
+    $("bottom").insertBefore($("codefold"), $("serifu"));
     loadFrontLink();
   }
   return r;
@@ -1065,6 +1077,102 @@ async function loadShelf() {
   }
 }
 $("shelf").ontoggle = () => { if ($("shelf").open) loadShelf(); };
+
+// ---------- 今日のセリフ：嫌なものだけ×で消す。何もしなければそのまま店先に出る ----------
+const SERIFU_KINDS = [["greet", "声をかける言葉"], ["chat", "話すこと"], ["bye", "見送りの言葉"]];
+const SERIFU_POLL_MS = 4000;
+let serifuJob = null;
+let serifuLine = Promise.resolve(); // 続けて押しても一つずつ送る
+
+function serifuRow(kind, text, picture) {
+  const row = document.createElement("div");
+  row.className = "serifurow";
+  if (picture) row.append(picture);
+  const words = document.createElement("span");
+  words.textContent = text;
+  const off = document.createElement("button");
+  off.type = "button";
+  off.textContent = "×";
+  off.setAttribute("aria-label", `「${text}」を消す`);
+  off.disabled = Boolean(serifuJob);
+  off.onclick = () => {
+    row.remove();
+    serifuLine = serifuLine.then(() => api("do=serifudel", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind, text }),
+    })).catch(() => {}).then(loadSerifu);
+  };
+  row.append(words, off);
+  return row;
+}
+
+async function loadSerifu() {
+  const body = $("serifubody");
+  if (!shopCode) { body.innerHTML = '<p class="quiet">合言葉を入れると読めます。</p>'; return; }
+  try {
+    const d = await api("do=serifu");
+    serifuJob = d.job;
+    body.replaceChildren();
+    const any = SERIFU_KINDS.some(([k]) => d.lines[k].length) || d.photos.length;
+    if (!any && !d.waiting && !d.job) { body.innerHTML = '<p class="quiet">まだセリフがありません。</p>'; return; }
+    body.append(line("quiet", "嫌なものだけ×で消せます。何もしなくても開店できます。"));
+    for (const [kind, title] of SERIFU_KINDS) {
+      if (!d.lines[kind].length) continue;
+      body.append(line("serifuhead", title));
+      for (const text of d.lines[kind]) body.append(serifuRow(kind, text));
+    }
+    if (d.photos.length) body.append(line("serifuhead", "写真のひとこと"));
+    for (const p of d.photos) {
+      const img = document.createElement("img");
+      img.alt = "店先に出す写真";
+      fetchPhotoFront(p.id).then((url) => { img.src = url; }).catch(() => {});
+      body.append(serifuRow(p.id, p.say, img));
+    }
+    if (d.job || d.waiting) {
+      const redo = document.createElement("button");
+      redo.type = "button";
+      redo.className = "serifuredo";
+      redo.textContent = d.job ? "福ちゃんが考え中です（1分ほど）" : "言い直して";
+      redo.disabled = Boolean(d.job);
+      redo.onclick = askRedo;
+      body.append(redo);
+    }
+    if (d.job) setTimeout(() => watchSerifu(d.job), SERIFU_POLL_MS);
+  } catch (e) {
+    body.innerHTML = '<p class="quiet">読めませんでした。もう一度開いてみてください。</p>';
+  }
+}
+const frontPhotoUrls = new Map();
+function fetchPhotoFront(id) {
+  if (!frontPhotoUrls.has(id)) frontPhotoUrls.set(id, request(`do=shashin&id=${encodeURIComponent(id)}`).then((r) => r.blob()).then((b) => URL.createObjectURL(b)));
+  return frontPhotoUrls.get(id);
+}
+
+async function askRedo(e) {
+  e.target.disabled = true; // 押したらすぐ待ちの表示に。二度押させない
+  e.target.textContent = "福ちゃんが考え中です（1分ほど）";
+  try {
+    await api("do=serifuredo", { method: "POST" });
+  } catch (e) {}
+  loadSerifu();
+}
+
+async function watchSerifu(job) {
+  if (serifuJob !== job) return;
+  try {
+    if (!(await api(`do=serifujob&job=${encodeURIComponent(job)}`)).done) {
+      setTimeout(() => watchSerifu(job), SERIFU_POLL_MS);
+      return;
+    }
+  } catch (e) {
+    setTimeout(() => watchSerifu(job), SERIFU_POLL_MS);
+    return;
+  }
+  serifuJob = null;
+  loadSerifu();
+}
+$("serifu").ontoggle = () => { if ($("serifu").open) loadSerifu(); };
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") closeIfShopOpened();
