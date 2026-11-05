@@ -241,6 +241,11 @@ const FRAME_MS = 400;         // カメラを見る間隔
 const PIXEL_DIFF = 25;        // 背景とこれだけ違う点を「何かいる」と数える
 const PRESENT_RATIO = 0.06;   // その点が画面のこの割合を超えたら「人がいる」
 const LIGHT_RATIO = 0.7;      // 画面のほとんどが変わった時は、人ではなく光の変化とみなす
+const MOTION_DIFF = 10;       // 前の一枚とこれだけ違う点を「動いた」と数える
+const MOTION_RATIO = 0.02;    // その点が画面のこの割合を超えたら「何かが動いている」
+const STILL_MS = 10 * 1000;   // 背景と違うのにこれだけ何も動かなければ、人ではなく景色が変わったとみなす
+const MOVED_RECENT = 3000;    // 話しかけるのは、このくらい前までに動きがあった時だけ
+const SETTLE_MS = 1500;       // カメラの明るさが落ち着くまでは人を探さない
 const NAP_AFTER = 60 * 1000;  // だれも来なければ寝る
 const MISE_EVERY = 60 * 1000;       // 福ちゃんの札とセリフと写真を読み直す間隔（取り消された写真もここで引っ込む）
 const GALLERY_AFTER = 30 * 1000;    // 大きな福ちゃんのまま、だれも立ち止まらなければ写真の時間へ
@@ -394,19 +399,32 @@ const watcher = { bg: null, seen: false, since: 0, lastSeen: 0, stopped: false }
 
 // 灰色の小さな画面を一枚見て、"pass"（来た）/"stop"（立ち止まった）/"leave"（立ち止まった人が行った）/null を返す
 function judge(w, gray, now) {
-  if (!w.bg) { w.bg = Float32Array.from(gray); return null; }
-  let changed = 0;
-  for (let i = 0; i < gray.length; i++) if (Math.abs(gray[i] - w.bg[i]) > PIXEL_DIFF) changed++;
+  if (!w.bg) { w.bg = Float32Array.from(gray); w.prev = gray; w.lastMoved = now; w.settleUntil = now + SETTLE_MS; return null; }
+  if (now < w.settleUntil) { w.bg = Float32Array.from(gray); w.prev = gray; w.lastMoved = now; return null; }
+  const avg = (a) => { let t = 0; for (let i = 0; i < a.length; i++) t += a[i]; return t / a.length; };
+  const nowAvg = avg(gray), bgShift = nowAvg - avg(w.bg), prevShift = nowAvg - avg(w.prev); // 部屋全体の明るさの変化は人に数えない
+  let changed = 0, moved = 0;
+  for (let i = 0; i < gray.length; i++) {
+    if (Math.abs(gray[i] - w.bg[i] - bgShift) > PIXEL_DIFF) changed++;
+    if (Math.abs(gray[i] - w.prev[i] - prevShift) > MOTION_DIFF) moved++;
+  }
+  w.prev = gray;
+  if (moved / gray.length > MOTION_RATIO) w.lastMoved = now;
   const ratio = changed / gray.length;
-  if (ratio > LIGHT_RATIO) { w.bg = Float32Array.from(gray); return null; }
+  if (ratio > LIGHT_RATIO) { w.bg = Float32Array.from(gray); w.lastMoved = now; return null; }
   const present = ratio > PRESENT_RATIO;
+  if (present && now - w.lastMoved > STILL_MS) { // 前にいた人の跡や光の変化。景色として覚え直し、次の人に気づけるようにする
+    w.bg = Float32Array.from(gray);
+    w.seen = false; w.stopped = false;
+    return null;
+  }
   const rate = present ? 0.002 : 0.05; // 背景は、人がいる間はほとんど覚え直さない
   for (let i = 0; i < gray.length; i++) w.bg[i] += (gray[i] - w.bg[i]) * rate;
 
   if (present) {
     w.lastSeen = now;
     if (!w.seen) { w.seen = true; w.since = now; w.stopped = false; return "pass"; }
-    if (!w.stopped && now - w.since >= STAY_MS) { w.stopped = true; return "stop"; }
+    if (!w.stopped && now - w.since >= STAY_MS && now - w.lastMoved < MOVED_RECENT) { w.stopped = true; return "stop"; } // 動きのない変化には話しかけない
     return null;
   }
   if (w.seen && now - w.lastSeen > GONE_MS) {
