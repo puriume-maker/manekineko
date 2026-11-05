@@ -178,13 +178,13 @@ function readReplyMark(texts) {
 // 出来事の列を、画面に出す会話へまとめる。
 // 発言にはそれぞれ post（属する投稿の番号）を付ける。印のない店主の発言はそれ自体が新しい投稿で、
 // 福ちゃんの言葉は直前の店主の発言と同じ投稿に入る（裏方の促しのあとの返事も、促しの前の発言の投稿に入る）
-// 返事の頭に作業の報告を英語で付けることがある。日本語が一字もない段落が頭にあれば、店主には見せない
+// 返事の頭に作業の報告を英語で付けることがある。日本語が一字もない行が頭にあれば、店主には見せない
 function dropForeword(text) {
-  const rows = text.split(/\n\s*\n/);
+  const rows = text.split("\n");
   const jp = /[\u3040-\u30ff\u4e00-\u9fff]/;
   while (rows.length > 1 && !jp.test(rows[0])) rows.shift();
   if (!jp.test(rows[0])) return ""; // 日本語が一字もない言葉は作業のメモ。店主に見せない
-  return rows.join("\n\n");
+  return rows.join("\n");
 }
 
 function readTalk(events, session) {
@@ -480,7 +480,7 @@ function checkMise(text) {
   const lines = (a, most = 5) => (Array.isArray(a) ? a.filter((t) => shortText(t, 60)).slice(0, most) : []);
   const items = [];
   for (const it of d.items.slice(0, 12)) {
-    if (!it || !shortText(it.name, 40) || !whole(it.price, 1_000_000)) return EMPTY_MISE;
+    if (!it || !shortText(it.name, 40) || !whole(it.price, 1_000_000)) continue; // 形の合わない品だけ落とす。札全部を消さない
     const item = { name: it.name, price: it.price };
     items.push(item);
   }
@@ -829,7 +829,7 @@ function keshiCue(parts, photoIds, dateText) {
     "- 消すもの：投稿の言葉、投稿の写真について書いた行、投稿からだけ生まれた推測・提案・計画・夢の行、mise.json のセリフや品や photos のうちこの投稿だけを根拠にしたもの",
     "- 他の投稿にも根拠があることは残す。関係のない行は一字も変えない",
     "- 「消した」という記録やメモは残さない。中身がなくなったノートはファイルごと消す。mise.json を書き直す時は JSON として正しく保つ",
-    "- mise_shashin.md は書き換えない",
+    "- mise_shashin.md と mise_keshita.md は書き換えない",
     ...(photoIds.length ? [`- mise.json の photos に次の番号があれば外す：${photoIds.join(" ")}`] : []),
     "- 店主に見せる言葉はいりません。終わったら「済みました」とだけ書いてください",
     "",
