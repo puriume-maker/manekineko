@@ -112,7 +112,8 @@
   .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
   .photos .photochip { grid-column: 1 / -1; }
   .msg.owner .photos img { aspect-ratio: 1; margin-bottom: 0; }
-  .msg.helper { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; line-height: 1.75; color: #3d392f; }
+  .msg.helper { display: flex; gap: 8px; align-items: flex-start; font-size: 16px; line-height: 1.75; color: var(--ink); }
+  .msg.owner + .msg.helper { margin-top: 6px; padding-top: 12px; border-top: 1px dashed var(--line); }
   .msg.helper .mark { flex: none; width: 24px; margin-top: 3px; image-rendering: pixelated; }
   .msg.helper .body { flex: 1; min-width: 0; }
   .msg.comment { font-size: 15px; line-height: 1.7; padding-left: 10px; border-left: 2px solid var(--line); }

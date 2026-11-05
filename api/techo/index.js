@@ -224,7 +224,7 @@ function readTalk(events, session) {
       });
     } else if (e.type === "agent.message") {
       const text = dropForeword(e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim());
-      if (!text || silent || text === turnText) continue; // 棚に書いたあとに同じ言葉を言い直すことがあるので、一度だけ出す
+      if (!text || silent || nearlySame(text, turnText)) continue; // 棚に書いたあとに同じ話を言い直すことがあるので、一度だけ出す
       turnText = text;
       if (!ownerSpoke && !morning) {
         // 定時の朝の会話なら日付を付ける。手帳の流れで「○月○日の朝」と出す（初日のあいさつには付けない）
@@ -253,6 +253,17 @@ function readTalk(events, session) {
     morning: morning && gone.has(morning.id) ? null : morning,
     thread, interview: firstDay && ownerSaid < INTERVIEW_ANSWERS, busy, paused, failed,
   };
+}
+
+// 二文字ずつの重なりで、ほぼ同じ文かを見る。少し言い換えた言い直しを一度だけにするため
+function nearlySame(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const pairs = (t) => { const m = new Map(); for (let i = 0; i < t.length - 1; i++) { const p = t.slice(i, i + 2); m.set(p, (m.get(p) || 0) + 1); } return m; };
+  const pa = pairs(a), pb = pairs(b);
+  let both = 0;
+  for (const [p, n] of pa) both += Math.min(n, pb.get(p) || 0);
+  return (2 * both) / Math.max(1, a.length + b.length - 2) >= 0.6;
 }
 
 async function talk(req, res) {
