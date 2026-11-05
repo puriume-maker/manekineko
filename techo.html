@@ -5,275 +5,325 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="お店の手帳">
-<meta name="theme-color" content="#fbf6e6">
+<meta name="theme-color" content="#f8f4ea">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="/icons/icon-192.png">
 <title>お店の手帳</title>
 <style>
-  /* めくった手帳：方眼の紙、左にリング穴と金具、右に重なった紙の束 */
+  /* えみの絵から：黒いリング、ほのかなベージュの紙、黒のボタン */
   :root {
     color-scheme: light;
-    --paper: #fbf6e6;
-    --paper-back: #f3ebd3;
-    --page-edge: #cfc4a6;
-    --desk: #e4dac1;
-    --card: #fffdf6;
-    --ink: #1f1d18;
-    --sub: #544e3e;
-    --leaf: #2f7a68;
-    --leaf-soft: #dcefe8;
-    --line: #d4c9ac;
-    --field: #a99e82;
-    --grid: rgba(47, 92, 104, 0.1);
+    --desk: #ebe6dc;
+    --paper: #f8f4ea;
+    --card: #fffdf8;
+    --ink: #161616;
+    --sub: #6e685b;
+    --line: #ddd5c4;
+    --soft: #efe9da;
     --warn: #8f4322;
-    --binding: 42px;  /* リングの分の余白 */
-    --pad: 14px;
-    --cell: 18px;     /* 方眼のひとます */
-    --stack: 8px;     /* 右に見える紙の束 */
+    --side: 16px;
+    --ringh: 60px;
+    --top: calc(var(--ringh) + env(safe-area-inset-top));
+    --barroom: calc(94px + env(safe-area-inset-bottom)); /* 下に固定した帯の分の余白 */
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html, body { height: 100%; }
+  html { background: var(--paper); }
   body {
     margin: 0; background: var(--desk); color: var(--ink);
-    font: 18px/1.7 "Hiragino Maru Gothic ProN", "Hiragino Sans", system-ui, sans-serif;
+    font: 16px/1.7 "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
     overflow-wrap: anywhere;
     line-break: strict;
     overflow-x: clip;
   }
   main {
-    position: relative;
-    max-width: 640px; margin: 0 var(--stack) 0 0; padding-left: var(--binding);
-    min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
-    background-color: var(--paper);
-    background-image:
-      linear-gradient(var(--grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-    background-size: var(--cell) var(--cell);
-    box-shadow:
-      1px 0 0 var(--page-edge), 3px 0 0 var(--paper-back),
-      4px 0 0 var(--page-edge), 6px 0 0 var(--paper-back),
-      7px 0 0 var(--page-edge), 10px 2px 14px rgba(60, 48, 20, 0.22);
-  }
-  @media (min-width: 680px) { main { margin: 0 auto; } }
-
-  /* リング穴と金具（縦に繰り返す絵）。左端の緑は表紙 */
-  main::before {
-    content: ""; position: absolute; inset: 0 auto 0 0; width: var(--binding);
-    pointer-events: none;
-    border-right: 1px solid rgba(47, 122, 104, 0.4);
-    background:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='42' height='72'%3E%3Cdefs%3E%3ClinearGradient id='m' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f7f7f3'/%3E%3Cstop offset='.5' stop-color='%23a4a6a2'/%3E%3Cstop offset='1' stop-color='%2362645f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='26' cy='37' r='7.5' fill='%23fffdf6' opacity='.7'/%3E%3Ccircle cx='26' cy='36' r='6.5' fill='%2334302a'/%3E%3Cpath d='M0 29 C8 23 22 23 26 35' fill='none' stroke='%23000' stroke-opacity='.22' stroke-width='5.5' stroke-linecap='round' transform='translate(1 2)'/%3E%3Cpath d='M0 29 C8 23 22 23 26 35' fill='none' stroke='url(%23m)' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E") 0 0 / 42px 72px repeat-y,
-      linear-gradient(90deg, var(--leaf) 0 5px, rgba(60, 48, 20, 0.14) 5px, rgba(60, 48, 20, 0) 26px);
-  }
-  /* めくった跡：右上の角を折る */
-  main::after {
-    content: ""; position: absolute; top: 0; right: 0; width: 34px; height: 34px;
-    pointer-events: none;
-    background: linear-gradient(225deg, var(--desk) 0 49%, var(--page-edge) 50%, var(--paper-back) 56%, var(--card) 100%);
-    box-shadow: -2px 2px 4px rgba(60, 48, 20, 0.18);
+    max-width: 640px; margin: 0 auto;
+    min-height: 100vh; min-height: 100dvh;
+    background: var(--paper);
   }
 
-  header { padding: 18px 44px 4px var(--pad); }
-  h1 { margin: 0; font-size: 24px; letter-spacing: 0.08em; font-weight: 600; }
+  /* 上のリングと、ノート／お店のボタン。スクロールしても上に残す */
+  .rings {
+    position: sticky; top: 0; z-index: 10;
+    height: var(--top); padding-top: env(safe-area-inset-top);
+    display: flex; justify-content: center; align-items: center;
+    background: var(--paper) url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2734%27%20height%3D%2746%27%20viewBox%3D%270%200%2034%2046%27%3E%3Ccircle%20cx%3D%2717%27%20cy%3D%2736%27%20r%3D%274%27%20fill%3D%27%233a342a%27/%3E%3Cpath%20d%3D%27M12%2036V10a5%205%200%200%201%2010%200v26%27%20fill%3D%27none%27%20stroke%3D%27%23141414%27%20stroke-width%3D%273.2%27%20stroke-linecap%3D%27round%27/%3E%3C/svg%3E") repeat-x 0 calc(8px + env(safe-area-inset-top));
+    box-shadow: 0 1px 0 var(--line);
+  }
+  .tabs { display: flex; gap: 8px; position: relative; top: 4px; }
+  .tabs button {
+    min-width: 88px; min-height: 36px; padding: 3px 14px; border-radius: 99px;
+    font: inherit; font-size: 15px; font-weight: 500; color: var(--sub);
+    background: #f1ece0; border: 1.5px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28); cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { background: #fff; color: var(--ink); font-weight: 700; }
+  body.locked .tabs, body.locked .panel { display: none; }
+  .locktitle { display: none; margin: 18px var(--side) 0; font-size: 20px; font-weight: 700; }
+  body.locked .locktitle { display: block; }
 
-  /* 今朝の福ちゃん：写真を貼って、その下に手書きのように */
-  .asa { position: relative; margin: 14px var(--pad) 0; }
-  .asa:has(.asaphoto:not([hidden]))::before {
-    content: ""; position: absolute; z-index: 1; top: -10px; left: 50%; width: 92px; height: 22px;
-    transform: translateX(-50%) rotate(-2deg);
-    background: rgba(47, 122, 104, 0.42);
-  }
-  .asaphoto {
-    display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--line);
-    border: 6px solid var(--card); border-radius: 2px;
-    box-shadow: 0 2px 7px rgba(60, 48, 20, 0.28);
-  }
-  .asabody { padding: 14px 0 4px; }
-  .asa h2 {
-    display: inline-block; margin: 0 0 8px; padding: 2px 10px; border-radius: 3px;
-    font-size: 16px; font-weight: 600; background: var(--leaf); color: #fff;
-  }
-  .asaword { margin: 0; font-size: 21px; line-height: 36px; white-space: pre-wrap; }
-  .asadate { display: block; margin-top: 6px; font-size: 14px; color: var(--sub); }
-  #asathread:not(:empty) { margin-top: 10px; }
+  .panel { padding: 14px var(--side) var(--barroom); display: flex; flex-direction: column; gap: 12px; }
 
-  /* 過去の朝 */
-  .days { display: flex; gap: 8px; padding: 10px var(--pad) 2px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* 下に固定する黒い帯。入力中はキーボードの邪魔をしないよう隠す */
+  .fab {
+    position: fixed; z-index: 20;
+    left: max(14px, calc(50% - 306px)); right: max(14px, calc(50% - 306px));
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    min-height: 54px; padding: 6px 12px; border: 0; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font: inherit; font-weight: 700; color: #fff; background: var(--ink); text-decoration: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); cursor: pointer;
+  }
+  .fab img { width: 28px; image-rendering: pixelated; background: #fff; border-radius: 4px; padding: 2px; }
+  body.typing .fab { display: none; }
+
+  /* 今日のひとこと：黒い枠 */
+  .asa { border: 2px solid var(--ink); border-radius: 12px; background: var(--card); padding: 12px 14px; }
+  .asaphoto { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--line); border-radius: 6px; margin-bottom: 10px; }
+  .asahead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .asahead > img { width: 38px; image-rendering: pixelated; }
+  .asahead h2 { margin: 0; padding: 1px 12px; border: 1.5px solid var(--ink); border-radius: 99px; font-size: 13px; font-weight: 700; }
+  #asamore { margin-left: auto; }
+  .asaword { margin: 0; font-size: 17px; line-height: 1.75; white-space: pre-wrap; }
+  .asadate { display: block; margin-top: 4px; font-size: 12px; color: var(--sub); }
+  #asathread:not(:empty) { margin-top: 6px; }
+
+  /* 過去の朝（カメラの係を使う人だけ） */
+  .days { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .day { flex: none; width: 76px; padding: 0; border: 0; background: none; font: inherit; color: var(--sub); cursor: pointer; text-align: center; }
-  .day img, .day .noimg { display: block; width: 76px; height: 76px; object-fit: cover; border-radius: 3px; background: var(--card); border: 3px solid var(--card); box-shadow: 0 1px 4px rgba(60, 48, 20, 0.3); }
+  .day img, .day .noimg { display: block; width: 76px; height: 76px; object-fit: cover; border-radius: 6px; background: var(--card); border: 2px solid var(--line); }
   .day .noimg { display: flex; align-items: center; justify-content: center; font-size: 13px; }
-  .day span.when { display: block; font-size: 14px; line-height: 1.6; margin-top: 2px; }
-  .day[aria-current="true"] img, .day[aria-current="true"] .noimg { border-color: var(--leaf); }
-  .day[aria-current="true"] { color: var(--leaf); font-weight: 600; }
+  .day span.when { display: block; font-size: 13px; line-height: 1.6; margin-top: 2px; }
+  .day[aria-current="true"] img, .day[aria-current="true"] .noimg { border-color: var(--ink); }
+  .day[aria-current="true"] { color: var(--ink); font-weight: 700; }
 
-  /* 折りたたみ（記憶の棚・合言葉）：はさんだ紙 */
-  details.fold { margin: 10px var(--pad) 0; background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--leaf); border-radius: 3px; }
-  details.fold > summary { padding: 12px 14px; min-height: 48px; cursor: pointer; font-size: 16px; color: var(--ink); }
-  .foldbody { padding: 0 14px 14px; }
-  .note { border-top: 1px dashed var(--line); padding: 10px 0; }
-  .note h3 { margin: 0 0 4px; font-size: 15px; color: var(--leaf); font-weight: 600; }
-  .note pre { margin: 0; white-space: pre-wrap; font: inherit; font-size: 16px; }
-  .quiet { color: var(--sub); font-size: 16px; margin: 0; }
-  .code { display: flex; flex-direction: column; gap: 8px; }
-  .code input { font: inherit; padding: 12px; border: 1px solid var(--field); border-radius: 4px; background: #fff; color: var(--ink); width: 100%; }
-  .needcode { color: var(--warn); font-size: 16px; margin: 0; }
-
-  /* 記録：今日の欄と、積もっていくページ */
-  .diaryhead { margin: 18px var(--pad) 8px; font-size: 20px; font-weight: 600; letter-spacing: 0.06em; }
-  #talk { padding: 4px var(--pad) 12px; }
-  #posts { display: flex; flex-direction: column; gap: 4px; }
-  .entry { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-top: 2px dashed var(--line); }
-  .entry > time { font-size: 14px; color: var(--sub); }
+  /* 記録：新しい順、幅いっぱい。福ちゃんの言葉は小さい猫の印つきで下に添える */
+  #talk { display: flex; flex-direction: column; gap: 12px; }
+  #talknotes:empty { display: none; }
+  #posts { display: flex; flex-direction: column; gap: 12px; }
+  .entry { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .ehead { display: flex; justify-content: space-between; align-items: center; min-height: 28px; }
+  .ehead time { font-size: 12px; color: var(--sub); }
   .post, .thread { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .aboutline { font-size: 14px; color: var(--sub); }
+  .aboutline { font-size: 13px; color: var(--sub); }
   .msg .body { white-space: pre-wrap; }
-  .msg.owner img { display: block; width: 100%; margin-bottom: 8px; border: 6px solid var(--card); border-radius: 2px; box-shadow: 0 2px 7px rgba(60, 48, 20, 0.28); }
-  /* 二枚以上は二列に並べる（一枚の時は今までどおり全幅） */
+  .msg.owner img { display: block; width: 100%; max-height: 340px; object-fit: cover; margin-bottom: 8px; border-radius: 6px; background: var(--line); }
   .photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
   .photos .photochip { grid-column: 1 / -1; }
-  .msg.owner .photos img { aspect-ratio: 1; object-fit: cover; margin-bottom: 0; border-width: 4px; background: var(--line); }
-  .msg.helper { padding: 10px 13px; border-radius: 4px; background: var(--card); border-left: 4px solid var(--leaf); box-shadow: 0 1px 3px rgba(60, 48, 20, 0.22); }
-  .msg.helper .who { display: block; font-size: 13px; color: var(--leaf); font-weight: 600; }
-  .msg.comment { font-size: 16px; line-height: 1.6; padding: 2px 0 2px 11px; border-left: 3px solid var(--field); }
-  /* 投稿の下の返事欄：ふだんは小さい文字だけ */
-  .replyarea { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
-  .replyopen { align-self: flex-start; min-height: 40px; padding: 0 6px 0 0; font: inherit; font-size: 15px; color: var(--leaf); background: none; border: 0; cursor: pointer; }
-  .reply { padding: 0; display: flex; flex-direction: column; gap: 4px; }
-  .reply .replyrow { display: flex; gap: 6px; align-items: flex-end; }
-  .reply textarea { min-height: 40px; padding: 7px 10px; font-size: 16px; line-height: 1.5; background: rgba(255, 255, 255, 0.75); }
-  .reply button { flex: none; min-width: 76px; height: 40px; padding: 0 8px; font: inherit; font-size: 15px; color: var(--leaf); background: var(--card); border: 1px solid var(--leaf); border-radius: 4px; cursor: pointer; }
-  .reply button:disabled { color: var(--sub); border-color: var(--line); cursor: default; }
-  .waithint { font-size: 14px; color: var(--sub); }
-  .reply .waithint { display: none; }
-  .reply.waiting:focus-within .waithint, .reply.waiting:has(textarea:not(:placeholder-shown)) .waithint { display: block; }
-  .photochip { color: var(--sub); font-size: 16px; }
-  .hello, .notice { align-self: stretch; color: var(--sub); font-size: 16px; padding: 8px 0 2px; }
-  .more { display: block; margin: 0 var(--pad) 8px; min-height: 44px; padding: 0 14px; font: inherit; font-size: 16px; color: var(--leaf); background: var(--card); border: 1px dashed var(--leaf); border-radius: 4px; cursor: pointer; }
+  .msg.owner .photos img { aspect-ratio: 1; margin-bottom: 0; }
+  .msg.helper { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; line-height: 1.75; color: #3d392f; }
+  .msg.helper .mark { flex: none; width: 24px; margin-top: 3px; image-rendering: pixelated; }
+  .msg.helper .body { flex: 1; min-width: 0; }
+  .msg.comment { font-size: 15px; line-height: 1.7; padding-left: 10px; border-left: 2px solid var(--line); }
+  .photochip { color: var(--sub); font-size: 14px; }
+  .hello, .notice { color: var(--sub); font-size: 15px; padding: 2px 0; }
   .notice { color: var(--warn); }
-  .thinking { align-self: flex-start; color: var(--sub); padding: 4px 6px; }
+  .more { align-self: stretch; min-height: 44px; padding: 0 14px; font: inherit; font-size: 15px; color: var(--ink); background: none; border: 1.5px solid var(--ink); border-radius: 8px; cursor: pointer; }
+  .thinking { align-self: flex-start; color: var(--sub); font-size: 15px; padding-left: 32px; }
   .thinking i { font-style: normal; animation: dot 1.4s infinite; }
   .thinking i:nth-child(2) { animation-delay: 0.2s; }
   .thinking i:nth-child(3) { animation-delay: 0.4s; }
   @keyframes dot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .thinking i { animation: none; } }
 
-  /* 写真の下の「ええよ」と、投稿を消す */
-  .shot { min-width: 0; }
-  .eeyorow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 13px; color: var(--sub); }
-  .msg.owner .shot img { margin-bottom: 4px; }
-  .eeyo { min-height: 32px; padding: 0 10px; font: inherit; font-size: 13px; color: var(--leaf); background: var(--card); border: 1px solid var(--leaf); border-radius: 4px; cursor: pointer; }
-  .eeyo[aria-pressed="true"] { color: #fff; background: var(--leaf); }
-  .replytools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .postdel { min-height: 40px; padding: 0 0 0 6px; font: inherit; font-size: 13px; color: var(--sub); background: none; border: 0; cursor: pointer; }
+  /* 投稿の隅の「…」 */
+  .postmenu { position: relative; flex: none; }
+  .morebtn { display: block; min-width: 44px; min-height: 32px; padding: 0 0 6px; font: inherit; font-size: 15px; letter-spacing: 1px; color: var(--sub); background: none; border: 0; cursor: pointer; text-align: right; }
+  .menupop { position: absolute; z-index: 5; right: 0; top: 100%; min-width: 96px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+  .postdel { display: block; width: 100%; min-height: 44px; padding: 0 14px; font: inherit; font-size: 15px; color: var(--warn); background: none; border: 0; cursor: pointer; }
   .postdel:disabled { opacity: 0.45; cursor: default; }
-  .delask { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-size: 14px; line-height: 1.5; color: var(--warn); background: var(--card); border: 1px solid var(--warn); border-radius: 4px; }
+  .delask { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-size: 14px; line-height: 1.5; color: var(--warn); background: var(--card); border: 1px solid var(--warn); border-radius: 8px; }
   .delask div { display: flex; gap: 8px; }
-  .delask button { min-height: 40px; padding: 0 14px; font: inherit; font-size: 15px; border-radius: 4px; cursor: pointer; }
+  .delask button { min-height: 40px; padding: 0 14px; font: inherit; font-size: 15px; border-radius: 8px; cursor: pointer; }
+  .delask button:disabled { opacity: 0.45; cursor: default; }
   .delyes { color: #fff; background: var(--warn); border: 0; }
-  .delno { color: var(--ink); background: none; border: 1px solid var(--field); }
-  /* 今日のセリフ */
-  .serifuhead { margin: 10px 0 2px; font-size: 14px; color: var(--leaf); font-weight: 600; }
-  .serifurow { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px dashed var(--line); font-size: 16px; line-height: 1.5; }
-  .serifurow span { flex: 1; min-width: 0; }
-  .serifurow img { flex: none; width: 44px; height: 44px; object-fit: cover; border-radius: 2px; background: var(--line); }
-  .serifurow button { flex: none; width: 40px; height: 40px; font: inherit; color: var(--sub); background: none; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
-  .serifuredo { margin-top: 10px; min-height: 44px; padding: 0 14px; font: inherit; font-size: 16px; color: #fff; background: var(--leaf); border: 0; border-radius: 4px; cursor: pointer; }
-  .serifuredo:disabled, .serifurow button:disabled { opacity: 0.45; cursor: default; }
-  .tomise { margin: 12px var(--pad) 0; text-align: right; font-size: 13px; }
-  .tomise a { color: var(--sub); }
+  .delno { color: var(--ink); background: none; border: 1px solid var(--sub); }
 
-  /* 入力：上の記録欄はふだん畳んで、緑のボタン一つ */
-  .writeopen { display: block; width: calc(100% - 2 * var(--pad)); margin: 18px var(--pad) 10px; min-height: 58px; padding: 8px 12px; font: inherit; font-weight: 600; color: #fff; background: var(--leaf); border: 0; border-radius: 6px; box-shadow: 0 2px 5px rgba(60, 48, 20, 0.28); cursor: pointer; }
-  .writehead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 18px var(--pad) 8px; }
-  .writehead .diaryhead { margin: 0; }
-  .writeclose { flex: none; min-height: 40px; padding: 0 10px; font: inherit; font-size: 15px; color: var(--leaf); background: none; border: 0; cursor: pointer; }
-  form { padding: 0 var(--pad) 8px; }
-  #bottom { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  /* 投稿の下の返事：ふだんは小さい文字だけ */
+  .replyarea { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
+  .replyopen { align-self: flex-end; min-height: 36px; padding: 0 0 0 8px; font: inherit; font-size: 13px; color: var(--sub); background: none; border: 0; cursor: pointer; }
+  .reply { padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .reply .replyrow { display: flex; gap: 6px; align-items: flex-end; }
+  .reply textarea { min-height: 40px; padding: 7px 10px; font-size: 16px; line-height: 1.5; }
+  .reply button { flex: none; min-width: 76px; height: 40px; padding: 0 8px; font: inherit; font-size: 15px; color: #fff; background: var(--ink); border: 0; border-radius: 8px; cursor: pointer; }
+  .reply button:disabled { opacity: 0.45; cursor: default; }
+  .waithint { font-size: 14px; color: var(--sub); }
+  .reply .waithint { display: none; }
+  .reply.waiting:focus-within .waithint, .reply.waiting:has(textarea:not(:placeholder-shown)) .waithint { display: block; }
+
+  /* 記録を書く欄。流れの中に開くので、キーボードが出ても画面ごと動いて隠れない */
+  .writepanel { background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px; padding: 8px 12px 12px; scroll-margin-top: calc(var(--top) + 10px); }
+  .writehead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .writehead h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .writeclose { flex: none; min-height: 40px; padding: 0 0 0 10px; font: inherit; font-size: 14px; color: var(--sub); background: none; border: 0; cursor: pointer; }
   .preview { display: flex; flex-wrap: wrap; gap: 14px 12px; margin: 8px 0 10px; }
   .preview div { position: relative; }
-  .preview img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 2px; }
+  .preview img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
   .preview button { position: absolute; top: -8px; right: -8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
   .row { display: flex; gap: 8px; align-items: flex-end; }
   textarea {
     flex: 1; min-width: 0; font: inherit; resize: none; padding: 11px 13px; min-height: 84px; max-height: 40vh;
-    border: 1px solid var(--field); border-radius: 4px; background: #fff; color: var(--ink);
+    border: 1px solid var(--sub); border-radius: 8px; background: #fff; color: var(--ink);
   }
   textarea::placeholder, .code input::placeholder { color: var(--sub); opacity: 1; }
-  textarea:focus, .code input:focus { outline: 2px solid var(--leaf); outline-offset: 0; }
-  .send { font: inherit; font-weight: 600; min-width: 68px; height: 50px; border: 0; border-radius: 4px; background: var(--leaf); color: #fff; cursor: pointer; }
+  textarea:focus, .code input:focus { outline: 2px solid var(--ink); outline-offset: 0; }
+  .send { flex: none; font: inherit; font-weight: 700; min-width: 68px; height: 50px; border: 0; border-radius: 8px; background: var(--ink); color: #fff; cursor: pointer; }
   .send:disabled { opacity: 0.45; cursor: default; }
-  .tools { display: flex; gap: 8px; margin-bottom: 8px; }
-  .pick { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 12px; font-size: 16px; color: var(--leaf); background: var(--card); border: 1px dashed var(--leaf); border-radius: 4px; cursor: pointer; }
+  .tools { display: flex; gap: 8px; margin-top: 8px; }
+  .pick { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 12px; font-size: 15px; color: var(--ink); background: none; border: 1.5px solid var(--ink); border-radius: 8px; cursor: pointer; }
   .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-  .pick:focus-within { outline: 2px solid var(--leaf); }
+  .pick:focus-within { outline: 2px solid var(--ink); }
   .pick:has(input:disabled) { opacity: 0.45; cursor: default; }
+
+  /* お店の面 */
+  .card { display: grid; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .card h3 { margin: 0; font-size: 15px; }
+  .fudalist { display: grid; gap: 4px; }
+  .fuda { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 17px; }
+  .fuda b { flex: none; font-size: 20px; }
+  .linebtn { font: inherit; font-size: 15px; min-height: 44px; padding: 8px; color: var(--ink); background: none; border: 1.5px solid var(--ink); border-radius: 8px; cursor: pointer; }
+  .linebtn:disabled { opacity: 0.45; cursor: default; }
+  .quiet { color: var(--sub); font-size: 14px; margin: 0; line-height: 1.6; }
+  #shopnote { margin: 0; font-size: 14px; }
+  details.card:not([open]) { gap: 0; }
+  details.card > summary { display: flex; justify-content: space-between; align-items: center; min-height: 28px; cursor: pointer; list-style: none; }
+  details.card > summary::-webkit-details-marker { display: none; }
+  .chev { color: var(--sub); font-size: 14px; }
+  .chev::after { content: "開く ›"; }
+  details[open] .chev::after { content: "閉じる"; }
+  .serifuhead { margin: 10px 0 2px; font-size: 13px; font-weight: 700; }
+  .serifurow { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.5; }
+  .serifurow span { flex: 1; min-width: 0; }
+  .serifurow img { flex: none; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: var(--line); }
+  .serifurow button { flex: none; width: 40px; height: 40px; font: inherit; color: var(--sub); background: none; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+  .serifuredo { width: 100%; margin-top: 10px; min-height: 44px; padding: 0 14px; font: inherit; font-size: 15px; color: #fff; background: var(--ink); border: 0; border-radius: 8px; cursor: pointer; }
+  .serifuredo:disabled, .serifurow button:disabled { opacity: 0.45; cursor: default; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .sh { position: relative; display: block; aspect-ratio: 1; width: 100%; padding: 0; border: 0; border-radius: 6px; background: var(--line); cursor: pointer; }
+  .sh img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+  .sh[aria-pressed="true"]::after { content: "✓"; position: absolute; right: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 14px; line-height: 24px; text-align: center; }
+  .sh[aria-pressed="true"] img { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+  /* 下に小さく：福ちゃんのノートと合言葉 */
+  .back { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
+  .fold > summary { min-height: 40px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--sub); text-decoration: underline; cursor: pointer; list-style: none; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold[open] { flex-basis: 100%; }
+  .foldbody { padding: 10px 14px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+  .note { border-top: 1px solid var(--line); padding: 10px 0; }
+  .note:first-child { border-top: 0; padding-top: 0; }
+  .note h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+  .note pre { margin: 0; white-space: pre-wrap; font: inherit; font-size: 15px; }
+  .code { display: flex; flex-direction: column; gap: 8px; }
+  .code input { font: inherit; padding: 12px; border: 1px solid var(--sub); border-radius: 8px; background: #fff; color: var(--ink); width: 100%; }
+  .needcode { color: var(--warn); font-size: 15px; margin: 0; }
+  #codeplace { padding: 0 var(--side); }
+  #codeplace:not(:empty) { margin-top: 12px; }
+  #codeplace .fold > summary { display: none; }
 </style>
 </head>
 <body>
 <main>
-  <header><h1>お店の手帳</h1></header>
+  <div class="rings">
+    <div class="tabs" role="tablist" aria-label="手帳の面">
+      <button type="button" role="tab" id="tabnote" aria-controls="panelnote" aria-selected="true">ノート</button>
+      <button type="button" role="tab" id="tabshop" aria-controls="panelshop" aria-selected="false">お店</button>
+    </div>
+  </div>
+  <h1 class="locktitle">お店の手帳</h1>
 
   <div id="codeplace"></div>
 
-  <section class="asa" id="asa" aria-live="polite" hidden>
-    <img class="asaphoto" id="asaphoto" alt="" hidden>
-    <div class="asabody">
-      <h2 id="asatitle">今朝の福ちゃん</h2>
-      <p class="asaword" id="asaword"></p>
-      <time class="asadate" id="asadate" hidden></time>
-      <div id="asathread"></div>
-    </div>
-  </section>
-
-  <nav class="days" id="days" aria-label="これまでのカメラの写真" hidden></nav>
-
-  <button class="writeopen" id="writeopen" type="button" aria-controls="writepanel">＋ 今日の記録を書く</button>
-  <div id="writepanel" hidden>
-  <div class="writehead">
-    <h2 class="diaryhead">今日の記録</h2>
-    <button class="writeclose" id="writeclose" type="button">閉じる</button>
-  </div>
-  <form id="form">
-    <div class="preview" id="preview" hidden></div>
-    <div class="row">
-      <textarea id="text" rows="3" placeholder="写真と一言。今日あったこと、なんでも" aria-label="今日の記録"></textarea>
-      <button class="send" id="send" type="submit">書く</button>
-    </div>
-    <div class="tools" style="margin: 8px 0 0">
-      <label class="pick">写真を撮る<input id="camera" type="file" accept="image/*" capture="environment"></label>
-      <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*" multiple></label>
-    </div>
-    <div class="waithint" id="sendhint" hidden>福ちゃんが考え中です。終わると書けます。</div>
-  </form>
-  </div>
-
-  <section id="talk" aria-live="polite">
-    <div id="talknotes"></div>
-    <div id="posts"></div>
-  </section>
-  <button class="more" id="more" type="button" hidden>もっと前を見る</button>
-
-  <div id="bottom">
-    <details class="fold" id="shelf">
-      <summary>福ちゃんのノート</summary>
-      <div class="foldbody" id="shelfbody"><p class="quiet">開くと読み込みます。</p></div>
-    </details>
-
-    <details class="fold" id="codefold">
-      <summary>お店の合言葉</summary>
-      <div class="foldbody code">
-        <p class="needcode" id="needcode" hidden>合言葉を入れると、福ちゃんの手帳が開きます。</p>
-        <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
+  <div class="panel" id="panelnote" role="tabpanel" aria-labelledby="tabnote">
+    <section class="asa" id="asa" aria-live="polite" hidden>
+      <img class="asaphoto" id="asaphoto" alt="" hidden>
+      <div class="asahead">
+        <img src="/icons/neko.png" alt="">
+        <h2 id="asatitle">今日のひとこと</h2>
+        <div id="asamore"></div>
       </div>
+      <p class="asaword" id="asaword"></p>
+      <time class="asadate" id="asadate"></time>
+      <div id="asathread"></div>
+    </section>
+
+    <nav class="days" id="days" aria-label="これまでのカメラの写真" hidden></nav>
+
+    <div class="writepanel" id="writepanel" hidden>
+      <div class="writehead">
+        <h2>今日の記録</h2>
+        <button class="writeclose" id="writeclose" type="button">閉じる</button>
+      </div>
+      <form id="form">
+        <div class="preview" id="preview" hidden></div>
+        <div class="row">
+          <textarea id="text" rows="3" placeholder="写真と一言。今日あったこと、なんでも" aria-label="今日の記録"></textarea>
+          <button class="send" id="send" type="submit">書く</button>
+        </div>
+        <div class="tools">
+          <label class="pick">写真を撮る<input id="camera" type="file" accept="image/*" capture="environment"></label>
+          <label class="pick">写真を選ぶ<input id="album" type="file" accept="image/*" multiple></label>
+        </div>
+        <div class="waithint" id="sendhint" hidden>福ちゃんが考え中です。終わると書けます。</div>
+      </form>
+    </div>
+
+    <section id="talk" aria-live="polite">
+      <div id="talknotes"></div>
+      <div id="posts"></div>
+    </section>
+    <button class="more" id="more" type="button" hidden>もっと前を見る</button>
+
+    <button class="fab" id="writeopen" type="button" aria-controls="writepanel">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3 17.2V21h3.8L17.9 9.9l-3.8-3.8L3 17.2zM20.7 7.1a1 1 0 0 0 0-1.4l-2.4-2.4a1 1 0 0 0-1.4 0l-1.9 1.9 3.8 3.8 1.9-1.9z"/></svg>
+      <span id="writelabel">今日の記録を書く</span>
+    </button>
+  </div>
+
+  <div class="panel" id="panelshop" role="tabpanel" aria-labelledby="tabshop" hidden>
+    <section class="card">
+      <h3>今の札</h3>
+      <div class="fudalist" id="fudalist"><p class="quiet">読み込み中です。</p></div>
+      <button class="linebtn" id="katazuke" type="button" hidden>札とセリフを片づける</button>
+      <div class="delask" id="katazukeask" hidden>
+        札とセリフを店先から片づけます。写真はそのままです。元に戻せません。
+        <div>
+          <button class="delyes" id="katazukeyes" type="button">片づける</button>
+          <button class="delno" id="katazukeno" type="button">やめる</button>
+        </div>
+      </div>
+      <p class="quiet" id="katazukenote" hidden></p>
+    </section>
+
+    <details class="card" id="serifu">
+      <summary><h3>今日のセリフ</h3><span class="chev"></span></summary>
+      <div id="serifubody"><p class="quiet">読み込み中です。</p></div>
     </details>
-    <details class="fold" id="serifu">
-      <summary>今日のセリフ</summary>
-      <div class="foldbody" id="serifubody"><p class="quiet">開くと読み込みます。</p></div>
-    </details>
-    <p class="tomise" id="tomisep" hidden><a id="tomise" target="_blank" rel="noopener noreferrer">店先の猫をひらく</a></p>
+
+    <section class="card">
+      <h3>店に出す写真</h3>
+      <p class="quiet" id="shophint">押すと✓が付いて、店先に出せる写真になります。福ちゃんが毎朝この中から選びます。</p>
+      <p class="notice" id="shopnote" hidden></p>
+      <div class="grid" id="shopgrid" hidden></div>
+      <button class="more" id="morephotos" type="button" hidden>もっと前の写真を見る</button>
+    </section>
+
+    <div class="back" id="backlinks">
+      <details class="fold" id="shelf">
+        <summary>福ちゃんのノート</summary>
+        <div class="foldbody" id="shelfbody"><p class="quiet">開くと読み込みます。</p></div>
+      </details>
+      <details class="fold" id="codefold">
+        <summary>お店の合言葉</summary>
+        <div class="foldbody code">
+          <p class="needcode" id="needcode" hidden>合言葉を入れると、福ちゃんの手帳が開きます。</p>
+          <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
+        </div>
+      </details>
+    </div>
+
+    <a class="fab" id="tomise" target="_blank" rel="noopener noreferrer" hidden><img src="/icons/neko.png" alt=""><span>店先の猫をひらく</span></a>
   </div>
 </main>
 
@@ -287,18 +337,20 @@ const MAX_BASE64 = 1_000_000; // 一枚の上限。4枚そろっても Vercel �
 
 // ---------- 合言葉（index.html と同じ置き場所・同じヘッダ） ----------
 let shopCode = (() => { try { return localStorage.getItem("niwasaki_code") || ""; } catch (e) { return ""; } })();
+let codeAccepted = false;
 $("shopcode").value = shopCode;
 if (!shopCode) showCodeNeeded();
 
-// 合言葉が要る時だけ、欄をいちばん上に出す。通ったら下にしまう
+// 合言葉が要る時だけ、欄をいちばん上に出す。通ったらお店の面の下にしまう
 function showCodeNeeded() {
+  codeAccepted = false;
+  document.body.classList.add("locked");
   $("codeplace").append($("codefold"));
   $("codefold").open = true;
   $("needcode").hidden = false;
 }
 
 let codeTimer;
-let codeAccepted = false;
 let codeSaved = Boolean(shopCode); // この端末に合言葉を置けているか
 // 同じ端末で店先の猫を開店すると、合言葉が消える。開いたままの手帳もここで閉じる（お客さんが手帳に戻れないように）
 function closeIfShopOpened() {
@@ -314,6 +366,7 @@ $("shopcode").oninput = (e) => {
   codeTimer = setTimeout(() => {
     if (!shopCode) return;
     if ($("shelf").open) loadShelf();
+    if (tab === "shop") loadSerifu();
     loadMornings();
     refresh();
   }, 500);
@@ -331,25 +384,49 @@ async function request(query, opts = {}) {
   if (!codeAccepted) { // 通ったら合言葉欄はしまう
     codeAccepted = true;
     $("codefold").open = false;
-    $("bottom").insertBefore($("codefold"), $("serifu"));
+    $("backlinks").append($("codefold"));
+    document.body.classList.remove("locked");
     loadFrontLink();
   }
   return r;
 }
 async function api(query, opts) { return (await request(query, opts)).json(); }
 
+// ---------- ノートとお店の面 ----------
+let tab = "note";
+const tabScroll = { note: 0, shop: 0 };
+function setTab(name) {
+  if (name === tab) return;
+  tabScroll[tab] = window.scrollY;
+  tab = name;
+  $("panelnote").hidden = name !== "note";
+  $("panelshop").hidden = name !== "shop";
+  $("tabnote").setAttribute("aria-selected", String(name === "note"));
+  $("tabshop").setAttribute("aria-selected", String(name === "shop"));
+  window.scrollTo(0, tabScroll[name]);
+  if (name === "shop") { loadSerifu(); draw(); }
+}
+$("tabnote").onclick = () => setTab("note");
+$("tabshop").onclick = () => setTab("shop");
+
+// 文字を打っている間は、下の帯を隠す（キーボードの上に浮かないように）
+const isTyping = (el) => el.matches?.("textarea, input:not([type=file])");
+document.addEventListener("focusin", (e) => { if (isTyping(e.target)) document.body.classList.add("typing"); });
+document.addEventListener("focusout", (e) => { if (isTyping(e.target)) document.body.classList.remove("typing"); });
+
 // 店先の猫へのリンク。合言葉ではなく、店先だけの鍵を渡す。別のタブで開くので「戻る」で手帳に来られない
 async function loadFrontLink() {
   try {
     const { key } = await api("do=misekey");
     $("tomise").href = `/#k=${key}`;
-    $("tomisep").hidden = false;
+    $("tomise").hidden = false;
   } catch (e) {}
 }
 
-// ---------- 今朝の福ちゃん。カメラの係を使う人には、写真の列も ----------
+// ---------- 今日のひとこと。カメラの係を使う人には、写真の列も ----------
 let mornings = [];
-let chosen = null;  // 見ている朝の日付
+let chosen = null;  // 見ている朝の日付。ふだんは今日
+let chosenByHand = false; // カメラの列で前の朝を選んだ
 let morningTimer = null;
 const photoUrls = new Map(); // 写真の問い合わせ → 画面用のURL（<img> はヘッダを送れないので fetch して持つ）
 
@@ -382,7 +459,7 @@ function drawCard() {
   img.hidden = true;
   if (!m) return;
   const isToday = m.date === todayText();
-  $("asatitle").textContent = isToday ? "今朝の福ちゃん" : `${dayLabel(m.date)}の福ちゃん`;
+  $("asatitle").textContent = isToday ? "今日のひとこと" : `${dayLabel(m.date)}のひとこと`;
   $("asadate").textContent = `${dayLabel(m.date)}の朝`;
   word.textContent = m.word || "福ちゃんが朝のしたくをしているところです。";
   if (m.fileId) {
@@ -418,7 +495,7 @@ function drawDays() {
       none.textContent = "写真なし";
       b.append(none, when);
     }
-    b.onclick = () => { chosen = m.date; drawCard(); drawDays(); draw(); };
+    b.onclick = () => { chosen = m.date; chosenByHand = true; drawCard(); drawDays(); draw(); };
     box.append(b);
   }
 }
@@ -429,7 +506,11 @@ async function loadMornings() {
   try {
     const data = await api("do=mornings");
     mornings = data.mornings.filter((m) => !gonePosts.has(m.id));
-    if (!mornings.some((m) => m.date === chosen)) chosen = mornings[0]?.date ?? null;
+    // 枠に出すのは今日の分だけ。今日の分がない朝は枠を出さない（前の朝は流れの中に入る）
+    if (!chosenByHand || !mornings.some((m) => m.date === chosen)) {
+      chosenByHand = false;
+      chosen = mornings.some((m) => m.date === todayText()) ? todayText() : null;
+    }
     drawCard();
     drawDays();
     draw(); // 朝のひとことは一番上に出すので、投稿の列には重ねない
@@ -453,7 +534,8 @@ const localPhotos = new Map(); // このページで送った写真の並び（�
 
 function fmtTime(at) {
   if (!at) return "";
-  return new Date(at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const part = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at)).map((p) => [p.type, p.value]));
+  return `${part.month}月${part.day}日 ${part.hour}:${part.minute}`;
 }
 
 // 助手の文に混じる飾り（**太字** や # 見出し）を、文字のまま安全に整える
@@ -470,80 +552,103 @@ const photoWatcher = "IntersectionObserver" in window ? new IntersectionObserver
   for (const s of seen) if (s.isIntersecting) { photoWatcher.unobserve(s.target); s.target.loadPhoto(); }
 }, { rootMargin: "400px" }) : null;
 
-function diaryPhoto(m, nth) {
+function diaryPhoto(m, nth, onFail) {
   const img = document.createElement("img");
   img.alt = "記録の写真";
   img.loadPhoto = () => fetchPhoto(`session=${encodeURIComponent(m.session)}&event=${encodeURIComponent(m.id)}${nth ? `&n=${nth}` : ""}`)
     .then((url) => { img.src = url; })
     .catch((e) => { // 前の作りの写真は読み返せない
+      if (onFail) { onFail(); return; }
       const chip = document.createElement("div");
       chip.className = "photochip"; chip.textContent = "（写真を送りました）";
-      img.parentNode?.querySelector(".eeyorow")?.remove();
       img.replaceWith(chip);
     });
   if (photoWatcher) photoWatcher.observe(img); else img.loadPhoto();
   return img;
 }
 
-// ---------- 写真の下の「ええよ」：押された写真だけが店先に出る候補になる。もう一度押すと取り消す ----------
+// ---------- 店に出す写真：押された写真だけが店先に出る候補になる。もう一度押すと取り消す ----------
 const eeyoNow = new Map(); // このページで押したものを覚えておく（会話を読み直すまでの間も正しく出すため）
 let eeyoLine = Promise.resolve(); // 続けて押しても一つずつ送る
+const tiles = new Map(); // 写真 → 画面の部品。読み直しのたびに写真を取りに行かないよう持ち続ける
 
-function photoWithEeyo(img, m, n) {
-  const shot = document.createElement("div");
-  shot.className = "shot";
-  shot.append(img);
-  if (!m.session || !m.id || m.id === "sending") return shot; // 届く前の写真にはまだ押せない
-  const key = `${m.id}:${n}`;
-  const row = document.createElement("div");
-  row.className = "eeyorow";
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "eeyo";
-  const paint = (on) => {
-    button.setAttribute("aria-pressed", String(on));
-    button.textContent = on ? "✓ ええよ" : "ええよ";
-    button.setAttribute("aria-label", on ? "店先に出してよい。押すと取り消します" : "この写真を店先に出してよい");
+function makeTile(m, n, key) {
+  const tile = document.createElement("button");
+  tile.type = "button";
+  tile.className = "sh";
+  const local = localPhotos.get(m.id);
+  let img;
+  if (local?.[n]) { img = document.createElement("img"); img.src = local[n]; img.alt = "記録の写真"; }
+  else img = diaryPhoto(m, n, () => { tile.dead = true; tile.remove(); drawShopPhotos(); }); // 前の作りの写真は読み返せないので並べない
+  tile.append(img);
+  tile.paint = (on) => {
+    tile.setAttribute("aria-pressed", String(on));
+    tile.setAttribute("aria-label", on ? "店に出す写真です。押すと取り消します" : "この写真を店に出す");
   };
-  paint(eeyoNow.has(key) ? eeyoNow.get(key) : (m.eeyo || []).includes(n));
-  button.onclick = () => {
-    const on = button.getAttribute("aria-pressed") !== "true";
-    paint(on);
+  tile.onclick = () => {
+    const on = tile.getAttribute("aria-pressed") !== "true";
+    tile.paint(on);
     eeyoNow.set(key, on);
+    $("shopnote").hidden = true;
     eeyoLine = eeyoLine.then(() => api("do=eeyo", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ session: m.session, event: m.id, n, on }),
+      body: JSON.stringify({ session: tile.m.session, event: tile.m.id, n, on }),
     })).catch(() => {
-      paint(!on);
+      tile.paint(!on);
       eeyoNow.set(key, !on);
-      notice = "「ええよ」を送れませんでした。もう一度お願いします。";
-      draw();
+      $("shopnote").textContent = "店に出す印を送れませんでした。もう一度お願いします。";
+      $("shopnote").hidden = false;
     });
   };
-  row.append("店先に", button);
-  shot.append(row);
-  return shot;
+  return tile;
 }
+
+// 記録に送った写真を新しい順に並べる。読み込めている分だけなので、もっと前は下のボタンで
+function drawShopPhotos(posts = allPosts()) {
+  if (tab !== "shop") return;
+  const wanted = [];
+  for (const post of posts.slice().reverse()) {
+    for (const m of [post.head, ...post.items]) {
+      if (!m || m.who !== "owner" || !m.photos || m.id === "sending" || !m.session) continue;
+      for (let n = 0; n < m.photos; n++) {
+        const key = `${m.id}:${n}`;
+        const tile = tiles.get(key) || makeTile(m, n, key);
+        tiles.set(key, tile);
+        if (tile.dead) continue;
+        tile.m = m;
+        tile.paint(eeyoNow.has(key) ? eeyoNow.get(key) : (m.eeyo || []).includes(n));
+        wanted.push(tile);
+      }
+    }
+  }
+  const grid = $("shopgrid");
+  if (wanted.length !== grid.children.length || wanted.some((t, i) => grid.children[i] !== t)) grid.replaceChildren(...wanted);
+  grid.hidden = !wanted.length;
+  $("shophint").textContent = wanted.length
+    ? "押すと✓が付いて、店先に出せる写真になります。福ちゃんが毎朝この中から選びます。"
+    : "記録に写真を送ると、ここに並びます。";
+  $("morephotos").hidden = nextPage === null;
+}
+$("morephotos").onclick = () => { if (nextPage !== null) loadDiary(nextPage); };
 
 function bubble(m) {
   const box = document.createElement("div");
   box.className = `msg ${m.who}${m.comment ? " comment" : ""}`;
   if (m.who === "helper") {
-    const who = document.createElement("span");
-    who.className = "who"; who.textContent = "福ちゃん";
-    box.append(who);
+    const mark = document.createElement("img");
+    mark.className = "mark"; mark.src = "/icons/neko.png"; mark.alt = "福ちゃん";
+    box.append(mark);
   }
   const local = m.localPhotos || localPhotos.get(m.id);
   const images = local
     ? local.map((url) => { const img = document.createElement("img"); img.src = url; img.alt = "記録の写真"; return img; })
     : Array.from({ length: m.photos || 0 }, (_, n) => diaryPhoto(m, n));
-  const pictures = images.map((img, n) => photoWithEeyo(img, m, n));
-  if (pictures.length === 1) box.append(pictures[0]);
-  else if (pictures.length) {
+  if (images.length === 1) box.append(images[0]);
+  else if (images.length) {
     const grid = document.createElement("div");
     grid.className = "photos";
-    grid.append(...pictures);
+    grid.append(...images);
     box.append(grid);
   }
   if (m.text) {
@@ -626,13 +731,24 @@ function makeBox(id) {
   const hint = line("waithint", "福ちゃんが考え中です。終わると送れます。");
   row.append(input, button);
   form.append(row, hint);
-  const tools = document.createElement("div");
-  tools.className = "replytools";
+  const tools = document.createElement("div"); // 隅の「…」。今日のひとことの枠にも、投稿の頭にも置く
+  tools.className = "postmenu";
+  const moreBtn = document.createElement("button");
+  moreBtn.type = "button";
+  moreBtn.className = "morebtn";
+  moreBtn.textContent = "…";
+  moreBtn.setAttribute("aria-label", "この投稿のメニュー");
+  moreBtn.setAttribute("aria-expanded", "false");
+  const pop = document.createElement("div");
+  pop.className = "menupop";
+  pop.hidden = true;
   const del = document.createElement("button");
   del.type = "button";
   del.className = "postdel";
   del.textContent = "消す";
   del.setAttribute("aria-label", "この投稿を消す");
+  pop.append(del);
+  tools.append(moreBtn, pop);
   const ask = document.createElement("div");
   ask.className = "delask";
   ask.hidden = true;
@@ -643,16 +759,17 @@ function makeBox(id) {
   const choices = document.createElement("div");
   choices.append(yes, no);
   ask.append("この投稿と返事を消します。店先の写真からも、福ちゃんのノートからも消えます。元に戻せません。", choices);
-  del.onclick = () => { ask.hidden = !ask.hidden; };
+  const setPop = (open) => { pop.hidden = !open; moreBtn.setAttribute("aria-expanded", String(open)); };
+  moreBtn.onclick = (e) => { e.stopPropagation(); closeMenus(); setPop(pop.hidden); };
+  del.onclick = () => { setPop(false); ask.hidden = false; ask.scrollIntoView({ block: "nearest" }); };
   no.onclick = () => { ask.hidden = true; };
   yes.onclick = () => { ask.hidden = true; removePost(box); };
-  tools.append(opener, del);
-  area.append(tools, ask, form);
-  root.append(thread, area);
-  const box = { id, root, thread, area, opener, form, input, button, del, sig: null, post: null };
+  area.append(opener, form);
+  root.append(ask, thread, area);
+  const box = { id, root, thread, area, opener, form, input, button, del, tools, setPop, sig: null, post: null };
   const setOpen = (open) => {
     form.hidden = !open;
-    opener.textContent = open ? "💬 閉じる" : input.value.trim() ? "💬 返事する（書きかけあり）" : "💬 返事する";
+    opener.textContent = open ? "閉じる" : input.value.trim() ? "返事する（書きかけあり）" : "返事する";
     opener.setAttribute("aria-expanded", String(open));
     if (open) { growBox(input); input.focus(); }
   };
@@ -670,6 +787,9 @@ function makeBox(id) {
   boxes.set(id, box);
   return box;
 }
+
+function closeMenus() { for (const box of boxes.values()) box.setPop(false); }
+document.addEventListener("click", closeMenus);
 
 function thinkingDots() {
   const t = document.createElement("div");
@@ -701,7 +821,7 @@ function drawPost(post, inCard) {
     box.thread.replaceChildren(...parts);
   }
   box.area.hidden = post.id === "sending"; // 届く前の投稿にはまだ返事を書けない
-  box.del.hidden = !post.head; // 消せるのは頭が読めている投稿だけ
+  box.tools.hidden = !post.head || post.id === "sending"; // 消せるのは頭が読めている投稿だけ
   return box;
 }
 
@@ -718,7 +838,7 @@ function drawButtons() {
   $("sendhint").hidden = !wait;
 }
 
-// 今朝の欄に出ている投稿。列からは外して、返事ごと今朝の欄の下に出す
+// 今日のひとことの枠に出ている投稿。列からは外して、返事ごと枠の中に出す
 function cardPost(posts) {
   const m = shownMorning();
   if (!m?.id) return null;
@@ -729,10 +849,11 @@ function cardPost(posts) {
 function drawCardThread(posts) {
   const place = $("asathread");
   const card = cardPost(posts);
-  if (!card) { place.replaceChildren(); return null; }
+  if (!card) { place.replaceChildren(); $("asamore").replaceChildren(); return null; }
   if (!card.head) card.head = { id: card.id, post: card.id, who: "helper", text: shownMorning().word, at: shownMorning().at, session: shownMorning().session };
   const box = drawPost(card, true);
   if (place.firstChild !== box.root) place.replaceChildren(box.root);
+  if (box.tools.parentNode !== $("asamore")) $("asamore").replaceChildren(box.tools);
   return card;
 }
 
@@ -746,14 +867,16 @@ function drawPosts(posts, card) {
     if (!entry) {
       entry = box.entry = document.createElement("article");
       entry.className = "entry";
-      entry.append(box.root);
+      const head = document.createElement("div");
+      head.className = "ehead";
+      head.append(document.createElement("time"));
+      entry.append(head, box.root);
     }
+    const head = entry.firstChild;
     const at = post.head?.at ?? post.items[0]?.at;
-    let t = entry.querySelector(":scope > time");
-    if (at) {
-      if (!t) { t = document.createElement("time"); entry.prepend(t); }
-      t.textContent = fmtTime(at);
-    } else if (t) t.remove();
+    // 朝の定時のひとことは「○月○日の朝」、それ以外は書いた時刻
+    head.firstChild.textContent = post.head?.asaDate ? `${dayLabel(post.head.asaDate)}の朝` : at ? fmtTime(at) : "";
+    if (box.tools.parentNode !== head) head.append(box.tools);
     if (box.root.parentNode !== entry) entry.append(box.root); // 今朝の欄から列へ戻る時
     wanted.push(entry);
   }
@@ -784,6 +907,7 @@ function draw() {
   $("more").hidden = nextPage === null;
   drawButtons();
   syncWrite(posts);
+  drawShopPhotos(posts);
 }
 
 function isThinking() { return Boolean(waitingFor) || shown.busy; }
@@ -976,8 +1100,11 @@ function setWrite(open, focus = false) {
   $("writepanel").hidden = !open;
   $("writeopen").hidden = open;
   $("writeopen").setAttribute("aria-expanded", String(open));
-  $("writeopen").textContent = hasDraft() ? "＋ 今日の記録を書く（書きかけあり）" : "＋ 今日の記録を書く";
-  if (open) { growText(); if (focus) $("text").focus(); }
+  $("writelabel").textContent = hasDraft() ? "今日の記録を書く（書きかけあり）" : "今日の記録を書く";
+  if (open) {
+    growText();
+    if (focus) { $("text").focus(); $("writepanel").scrollIntoView({ block: "start" }); }
+  }
 }
 $("writeopen").onclick = () => { writeClosedByHand = false; writeAutoOpened = false; setWrite(true, true); };
 $("writeclose").onclick = () => { writeClosedByHand = true; writeAutoOpened = false; setWrite(false); };
@@ -1043,7 +1170,7 @@ $("form").onsubmit = (e) => {
       setWrite(true);
     },
   });
-  $("writeopen").scrollIntoView({ block: "start" }); // 書いた記録はこのすぐ下に出る
+  $("talk").scrollIntoView({ block: "start" }); // 書いた記録はここに出る
 };
 
 function growBox(t) {
@@ -1082,6 +1209,7 @@ $("shelf").ontoggle = () => { if ($("shelf").open) loadShelf(); };
 const SERIFU_KINDS = [["greet", "声をかける言葉"], ["chat", "話すこと"], ["bye", "見送りの言葉"]];
 const SERIFU_POLL_MS = 4000;
 let serifuJob = null;
+let serifuWatching = null;
 let serifuLine = Promise.resolve(); // 続けて押しても一つずつ送る
 
 function serifuRow(kind, text, picture) {
@@ -1107,15 +1235,53 @@ function serifuRow(kind, text, picture) {
   return row;
 }
 
+// 今の札。ない時はないと分かる文を出す
+function drawFuda(items) {
+  const box = $("fudalist");
+  box.replaceChildren();
+  if (!items.length) box.append(line("quiet", "いま札は出ていません。売るものと値段を記録に書くと、福ちゃんが札を作ります。"));
+  for (const it of items) {
+    const row = document.createElement("div");
+    row.className = "fuda";
+    const name = document.createElement("span");
+    name.textContent = it.name;
+    const price = document.createElement("b");
+    price.textContent = `${it.price.toLocaleString("ja-JP")}円`;
+    row.append(name, price);
+    box.append(row);
+  }
+}
+
+$("katazuke").onclick = () => { $("katazukeask").hidden = false; $("katazuke").hidden = true; $("katazukenote").hidden = true; };
+$("katazukeno").onclick = () => { $("katazukeask").hidden = true; $("katazuke").hidden = false; };
+$("katazukeyes").onclick = async () => {
+  $("katazukeyes").disabled = $("katazukeno").disabled = true;
+  let said = "片づけました。次に売るものは記録に書いてください。";
+  try {
+    await api("do=katazuke", { method: "POST" });
+  } catch (e) {
+    said = e.message === "http 409" ? "福ちゃんが動いている間は片づけられません。少し待ってもう一度お願いします。" : "片づけられませんでした。もう一度お願いします。";
+  }
+  $("katazukeyes").disabled = $("katazukeno").disabled = false;
+  $("katazukeask").hidden = true;
+  $("katazukenote").textContent = said;
+  $("katazukenote").hidden = false;
+  loadSerifu();
+};
+
 async function loadSerifu() {
   const body = $("serifubody");
   if (!shopCode) { body.innerHTML = '<p class="quiet">合言葉を入れると読めます。</p>'; return; }
   try {
     const d = await api("do=serifu");
     serifuJob = d.job;
+    drawFuda(d.items);
+    const anyLine = SERIFU_KINDS.some(([k]) => d.lines[k].length);
+    // 札もセリフも片づけた後は、前に消した分の書き足しを勧めない
+    const redoable = Boolean(d.job) || (d.waiting > 0 && (d.items.length > 0 || anyLine));
+    if ($("katazukeask").hidden) $("katazuke").hidden = !d.items.length && !anyLine;
     body.replaceChildren();
-    const any = SERIFU_KINDS.some(([k]) => d.lines[k].length) || d.photos.length;
-    if (!any && !d.waiting && !d.job) { body.innerHTML = '<p class="quiet">まだセリフがありません。</p>'; return; }
+    if (!anyLine && !d.photos.length && !redoable) { body.innerHTML = '<p class="quiet">まだセリフがありません。</p>'; return; }
     body.append(line("quiet", "嫌なものだけ×で消せます。何もしなくても開店できます。"));
     for (const [kind, title] of SERIFU_KINDS) {
       if (!d.lines[kind].length) continue;
@@ -1129,7 +1295,7 @@ async function loadSerifu() {
       fetchPhotoFront(p.id).then((url) => { img.src = url; }).catch(() => {});
       body.append(serifuRow(p.id, p.say, img));
     }
-    if (d.job || d.waiting) {
+    if (redoable) {
       const redo = document.createElement("button");
       redo.type = "button";
       redo.className = "serifuredo";
@@ -1138,9 +1304,10 @@ async function loadSerifu() {
       redo.onclick = askRedo;
       body.append(redo);
     }
-    if (d.job) setTimeout(() => watchSerifu(d.job), SERIFU_POLL_MS);
+    if (d.job && serifuWatching !== d.job) { serifuWatching = d.job; setTimeout(() => watchSerifu(d.job), SERIFU_POLL_MS); }
   } catch (e) {
     body.innerHTML = '<p class="quiet">読めませんでした。もう一度開いてみてください。</p>';
+    $("fudalist").replaceChildren(line("quiet", "読めませんでした。もう一度開いてみてください。"));
   }
 }
 const frontPhotoUrls = new Map();
@@ -1172,11 +1339,10 @@ async function watchSerifu(job) {
   serifuJob = null;
   loadSerifu();
 }
-$("serifu").ontoggle = () => { if ($("serifu").open) loadSerifu(); };
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") closeIfShopOpened();
-  if (document.visibilityState === "visible" && !isThinking()) { refresh(); loadMornings(); }
+  if (document.visibilityState === "visible" && !isThinking()) { refresh(); loadMornings(); if (tab === "shop") loadSerifu(); }
 });
 
 draw();

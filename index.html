@@ -126,6 +126,7 @@
   .openhint:empty { display: none; }
   button.main { font: inherit; font-size: 22px; padding: 16px 40px; border-radius: 999px; border: 0; background: var(--mint-deep); color: #fff; cursor: pointer; }
   button.main:disabled { opacity: 0.5; cursor: default; }
+  .totecho { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; font-size: 15px; color: var(--sub); }
 
   /* 写真の時間：写真が大きく、福ちゃんは小さく */
   .stage { position: fixed; inset: 0; z-index: 5; background: #1f1d18; }
@@ -177,6 +178,7 @@
   <label class="codebox" id="codebox">お店の合言葉 <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉"></label>
   <p class="openhint" id="openhint"></p>
   <button class="main" id="openbtn">開店する</button>
+  <a class="totecho" href="/techo.html">手帳へ</a>
 </div>
 
 <video id="video" playsinline muted></video>
@@ -252,7 +254,7 @@ const FIXED = {
 };
 
 // ---------- 店先の鍵 ----------
-// この端末には合言葉を置かない。店先の札と「ええよ」済みの写真しか読めない鍵だけを置く。
+// この端末には合言葉を置かない。店先の札と店に出す印のある写真しか読めない鍵だけを置く。
 // 手帳のリンクから来た時は鍵がついている。直接開いた時は、合言葉を一度だけ鍵に引き換える。
 const saved = {
   get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },

@@ -7,7 +7,7 @@
 //   GET  /api/techo?do=photo&file=file_…      カメラの係の写真（朝の一覧に載っているものだけ）
 //   GET  /api/techo?do=photo&session=…&event=…[&n=0]  記録の写真（この福ちゃんの会話にあるものだけ。n は何枚目か）
 //   GET  /api/techo?do=mise                   店先の猫が読む札とセリフと写真の一覧（棚の mise.json を検証して返す）★
-//   GET  /api/techo?do=shashin&id=p_…         店先に出す写真（「ええよ」済みのものだけ。メタデータを落として返す）★
+//   GET  /api/techo?do=shashin&id=p_…         店先に出す写真（店に出す印のあるものだけ。メタデータを落として返す）★
 //   GET  /api/techo?do=misekey                店先の鍵（手帳の「店先の猫をひらく」と、開店の合言葉の引き換えに使う）
 //   POST /api/techo?do=eeyo    {session, event, n, on}  写真を店先に出してよいかを切り替える
 //   POST /api/techo?do=delete  {session, post}  投稿を消す
@@ -16,6 +16,7 @@
 //   POST /api/techo?do=serifudel {kind, text} セリフを一つ消す。kind は greet/chat/bye か写真の番号
 //   POST /api/techo?do=serifuredo             消した分を福ちゃんに書き足してもらう
 //   GET  /api/techo?do=serifujob&job=sesn_…   書き足しが済んだか
+//   POST /api/techo?do=katazuke               札とセリフを片づける（写真と店に出す印と消したセリフの一覧はそのまま）
 // ★だけは店先の鍵でも読める。それ以外は合言葉が要る。
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import crypto from "node:crypto";
@@ -43,7 +44,7 @@ const MORNING_SCAN = 200; // 朝を探して見る会話の数の上限
 const MISE_PATH = "/mise.json";
 const EMPTY_MISE = { date: null, items: [], lines: { greet: [], bye: [], chat: [] }, photos: [] };
 const SHASHIN_PATH = "/mise_shashin.md"; // 「ええよ」の一覧。手帳が書き、福ちゃんは読むだけ。本当の印は会話の metadata にある（福ちゃんには触れない）
-const SHASHIN_HEAD = "# 店先に出してよい写真（店主が「ええよ」を押したもの。手帳が書くノートなので書き換えない）";
+const SHASHIN_HEAD = "# 店先に出してよい写真（店主が「店に出す」を押したもの。手帳が書くノートなので書き換えない）"; // 手帳の「福ちゃんのノート」に出る文
 const KESHITA_PATH = "/mise_keshita.md"; // 店主が消したセリフ。手帳が書き、福ちゃんは読むだけ。ここにある言葉は店先に出さない
 const KESHITA_HEAD = "# 店主が消した店先のセリフ（手帳が書くノートなので書き換えない。同じ言葉も言い換えも mise.json に書かない）";
 const MAX_KESHITA = 200;
@@ -226,7 +227,8 @@ function readTalk(events, session) {
       if (!text || silent || text === turnText) continue; // 棚に書いたあとに同じ言葉を言い直すことがあるので、一度だけ出す
       turnText = text;
       if (!ownerSpoke && !morning) {
-        morning = { id: e.id, text, at: e.processed_at };
+        // 定時の朝の会話なら日付を付ける。手帳の流れで「○月○日の朝」と出す（初日のあいさつには付けない）
+        morning = { id: e.id, text, at: e.processed_at, ...(session?.metadata?.kind === "asa" ? { asaDate: dateOf(session) } : {}) };
         thread = e.id;
       } else messages.push({ id: e.id, who: "helper", post: thread, text, at: e.processed_at });
     } else if (e.type === "session.status_idle") {
@@ -506,9 +508,19 @@ async function frontPhotos(chosen, pickedAt) {
     if (byId.has(p.id) && !seen.has(p.id)) { seen.add(p.id); out.push({ id: p.id, say: p.say }); }
   }
   for (const p of approved) {
-    if (!seen.has(p.id) && p.at > pickedAt) { seen.add(p.id); out.push({ id: p.id, say: null }); }
+    // 押した時刻は分までしか持たないので、同じ分のものも入れる
+    if (!seen.has(p.id) && p.at + 60_000 > pickedAt) { seen.add(p.id); out.push({ id: p.id, say: null }); }
   }
   return out.slice(0, MAX_FRONT_PHOTOS);
+}
+
+// mise.json を手帳が書き直す前に呼ぶ。更新時刻より後に印を付けた写真だけが店先に出る決まりなので、
+// 今店先に出ている写真を photos に書き留めておく。×や片づけで店先から落ちないように
+async function photosToKeep(d, updatedAt) {
+  const kept = Array.isArray(d.photos) ? d.photos.filter((p) => p && typeof p === "object") : [];
+  const front = await frontPhotos(kept.filter((p) => PHOTO_ID.test(p.id)), Date.parse(updatedAt));
+  const known = new Set(kept.map((p) => p.id));
+  return [...kept, ...front.filter((p) => !known.has(p.id))];
 }
 
 async function mise(req, res) {
@@ -569,7 +581,7 @@ async function serifu(req, res) {
   const data = withoutKeshita(full ? checkMise(full.content ?? "") : EMPTY_MISE, rows);
   const photos = (await frontPhotos(data.photos, full ? Date.parse(full.updated_at) : 0)).filter((p) => p.say);
   res.setHeader("cache-control", "no-store");
-  return res.status(200).json({ date: data.date, lines: data.lines, photos, waiting: rows.filter((r) => r.waiting).length, job: await runningSerifuJob() });
+  return res.status(200).json({ date: data.date, items: data.items, lines: data.lines, photos, waiting: rows.filter((r) => r.waiting).length, job: await runningSerifuJob() });
 }
 
 async function serifuDel(req, res) {
@@ -591,6 +603,7 @@ async function serifuDel(req, res) {
       if (!p) return res.status(404).json({ error: "no line" });
       p.say = null;
     }
+    d.photos = await photosToKeep(d, full.updated_at);
     try {
       await client.beta.memoryStores.memories.update(note.id, {
         memory_store_id: store,
@@ -656,6 +669,49 @@ async function serifuJob(req, res) {
   if (!(await keshiEnded(s))) return res.status(200).json({ done: false });
   await finishSerifu(s);
   return res.status(200).json({ done: true });
+}
+
+// ---------- 札とセリフを片づける ----------
+// 棚の mise.json の items と lines を空にする。photos と店に出す印は残し、mise_keshita.md にも触らない
+async function katazuke(req, res) {
+  const c = ids();
+  // 福ちゃんが動いている間に片づけると、書き戻されることがある
+  for await (const s of client.beta.sessions.list({ agent_id: c.agent, memory_store_id: c.store, statuses: ["running", "rescheduling"], limit: 10 })) {
+    return res.status(409).json({ error: "busy" });
+  }
+  const job = await runningSerifuJob();
+  const jobSession = job && await ourSession(job);
+  if (jobSession && !(await keshiEnded(jobSession))) return res.status(409).json({ error: "busy" }); // 作られた直後の書き足しは idle に見える
+
+  const note = await findNote(c.store, MISE_PATH);
+  if (!note) return res.status(200).json({ ok: true });
+  // 福ちゃんが同時に書いていたら、読み直してもう一度だけ
+  for (let tries = 0; ; tries++) {
+    const full = await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: c.store });
+    let d;
+    try { d = JSON.parse(full.content ?? ""); } catch { d = null; } // 壊れた mise.json は店先にも空として出ているので、空で書き直す
+    if (!d || typeof d !== "object" || Array.isArray(d)) d = {};
+    const hadAny = !Array.isArray(d.items) || d.items.length || !d.lines || LINE_KINDS.some((k) => d.lines[k]?.length);
+    if (!hadAny) break;
+    const next = {
+      ...d,
+      date: realDate(d.date) ? d.date : new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }),
+      items: [],
+      lines: { greet: [], bye: [], chat: [] },
+      photos: await photosToKeep(d, full.updated_at),
+    };
+    try {
+      await client.beta.memoryStores.memories.update(note.id, {
+        memory_store_id: c.store,
+        content: JSON.stringify(next),
+        precondition: { type: "content_sha256", content_sha256: full.content_sha256 },
+      });
+      break;
+    } catch (e) {
+      if (e.status !== 409 || tries) throw e;
+    }
+  }
+  return res.status(200).json({ ok: true });
 }
 
 // 位置情報などを落とす：JPEG の中の APP（EXIF、XMP、ICC など）とコメント、終わりの後ろのデータを捨てて、絵だけを残す
@@ -912,6 +968,7 @@ export default async function handler(req, res) {
     if (action === "serifudel" && req.method === "POST") return await serifuDel(req, res);
     if (action === "serifuredo" && req.method === "POST") return await serifuRedo(req, res);
     if (action === "serifujob" && req.method === "GET") return await serifuJob(req, res);
+    if (action === "katazuke" && req.method === "POST") return await katazuke(req, res);
     return res.status(404).json({ error: "unknown" });
   } catch (e) {
     console.error("techo", action, e.status, e.message); // 鍵は載らない（状態コードと文面だけ）
