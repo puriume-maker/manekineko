@@ -127,12 +127,25 @@
   button.main { font: inherit; font-size: 22px; padding: 16px 40px; border-radius: 999px; border: 0; background: var(--mint-deep); color: #fff; cursor: pointer; }
   button.main:disabled { opacity: 0.5; cursor: default; }
 
+  /* 写真の時間：写真が大きく、福ちゃんは小さく */
+  .stage { position: fixed; inset: 0; z-index: 5; background: #1f1d18; }
+  .stage img { width: 100%; height: 100%; object-fit: contain; display: block; animation: fadein 0.8s ease-out; }
+  @keyframes fadein { from { opacity: 0; } }
+  body.gallery .shop { position: fixed; z-index: 6; right: clamp(10px, 2vw, 24px); bottom: 58px; flex-direction: row-reverse; align-items: flex-end; gap: 10px; }
+  body.gallery .shop > .cat { width: clamp(84px, 17vmin, 170px); background: var(--bg); border-radius: 16px; padding: 8px; }
+  body.gallery .side { flex: none; width: auto; max-width: min(60vw, 560px); }
+  body.gallery .bubble { font-size: clamp(16px, 2.6vmin, 26px); padding: 8px 14px; border-width: 3px; }
+  body.gallery .fuda { display: none; }
+  body.gallery .foot { position: fixed; z-index: 6; left: 0; right: 0; bottom: 0; padding: 4px 16px; background: rgba(30, 32, 40, 0.72); color: #e9e4d8; }
+  body.gallery .foot button { color: #e9e4d8; }
+
   video, canvas.probe { display: none; }
 </style>
 </head>
 <body>
 <div class="awning" aria-hidden="true"></div>
 <i class="hana a"></i><i class="hana b"></i><i class="hana c"></i><i class="hana d"></i><i class="hana e"></i><i class="hana f"></i>
+<div class="stage" id="stage" hidden><img id="stageimg" alt="店主さんが撮った写真"></div>
 <main>
   <section class="shop">
     <div class="cat" id="cat"></div>
@@ -157,7 +170,8 @@
   <div class="cat" id="opencat"></div>
   <h1>庭先の店番</h1>
   <p>お店を開ける時に押してね。<br>声とカメラが使えるようになるよ。<br>並べる品は、手帳で福ちゃんに話してね。</p>
-  <label class="codebox">お店の合言葉 <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉"></label>
+  <p id="closenote" hidden>開店すると、この端末の手帳は閉じるよ。<br>手帳を見る時は、合言葉を入れ直してけれ。</p>
+  <label class="codebox" id="codebox">お店の合言葉 <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉"></label>
   <p class="openhint" id="openhint"></p>
   <button class="main" id="openbtn">開店する</button>
 </div>
@@ -223,23 +237,56 @@ const PIXEL_DIFF = 25;        // 背景とこれだけ違う点を「何かい�
 const PRESENT_RATIO = 0.06;   // その点が画面のこの割合を超えたら「人がいる」
 const LIGHT_RATIO = 0.7;      // 画面のほとんどが変わった時は、人ではなく光の変化とみなす
 const NAP_AFTER = 60 * 1000;  // だれも来なければ寝る
-const MISE_EVERY = 5 * 60 * 1000;   // 福ちゃんの札とセリフを読み直す間隔
+const MISE_EVERY = 60 * 1000;       // 福ちゃんの札とセリフと写真を読み直す間隔（取り消された写真もここで引っ込む）
+const GALLERY_AFTER = 30 * 1000;    // 大きな福ちゃんのまま、だれも立ち止まらなければ写真の時間へ
+const PHOTO_MS = 12 * 1000;         // 写真一枚を見せる長さ
 
 // 福ちゃんの言葉が読めない時の決まり文句（黙らない）
 const FIXED = {
   greet: ["よぐ来たなぁ。", "よぐ来たなぁ、ゆっくり見でってけれ。"],
   bye: ["ありがとさん。まだ来てけれな。"],
+  photo: "店主さんの撮った写真だよ。見でってけれ。",
 };
 
-// ---------- 合言葉 ----------
-let shopCode = (() => { try { return localStorage.getItem("niwasaki_code") || ""; } catch (e) { return ""; } })();
-$("shopcode").value = shopCode;
-$("shopcode").oninput = (e) => {
-  shopCode = e.target.value.trim();
-  $("openhint").textContent = "";
-  try { localStorage.setItem("niwasaki_code", shopCode); } catch (err) {}
+// ---------- 店先の鍵 ----------
+// この端末には合言葉を置かない。店先の札と「ええよ」済みの写真しか読めない鍵だけを置く。
+// 手帳のリンクから来た時は鍵がついている。直接開いた時は、合言葉を一度だけ鍵に引き換える。
+const saved = {
+  get(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  drop(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
-const apiFetch = (url, opts = {}) => fetch(url, { ...opts, headers: { ...(opts.headers || {}), "x-shop-code": shopCode } });
+const KEY_NAME = "niwasaki_mise_key";
+const CODE_NAME = "niwasaki_code"; // 手帳の合言葉（同じ端末で手帳を開いていれば残っている）
+let miseKey = saved.get(KEY_NAME);
+const fromLink = /^#k=([\w-]+)$/.exec(location.hash);
+if (fromLink) {
+  miseKey = fromLink[1];
+  saved.set(KEY_NAME, miseKey);
+  history.replaceState(null, "", location.pathname); // 鍵を住所欄と履歴に残さない
+}
+function drawCodeBox() {
+  $("codebox").hidden = Boolean(miseKey);
+  $("closenote").hidden = !saved.get(CODE_NAME);
+}
+$("shopcode").value = miseKey ? "" : saved.get(CODE_NAME);
+$("shopcode").oninput = () => { $("openhint").textContent = ""; };
+drawCodeBox();
+const apiFetch = (url, opts = {}) => fetch(url, { ...opts, headers: { ...(opts.headers || {}), "x-mise-key": miseKey } });
+
+// 合言葉を鍵に引き換える。戻り値は hint（だめな時の言葉）
+async function exchangeCode() {
+  try {
+    const r = await fetch("/api/techo?do=misekey", { headers: { "x-shop-code": $("shopcode").value.trim() } });
+    if (r.status === 403) return "合言葉がちがうみたいだ。店主さんの合言葉を入れでけれ。";
+    if (!r.ok) throw new Error("http");
+    miseKey = (await r.json()).key;
+    saved.set(KEY_NAME, miseKey);
+    return "";
+  } catch (e) {
+    return "つながらねぇみたいだ。電波のいいどこで、もう一回押してけれ。";
+  }
+}
 
 // ---------- 福ちゃんの札とセリフ（猫は読むだけ） ----------
 let mise = { items: [], lines: { greet: [], bye: [] } };
@@ -264,6 +311,7 @@ async function loadMise() {
     if (r.ok) {
       mise = await r.json();
       drawFuda();
+      await loadShots(mise.photos || []);
       prepareVoices();
     }
   } catch (e) {}
@@ -295,7 +343,7 @@ async function prepareVoices() {
   if (preparing) return;
   preparing = true;
   const store = "caches" in window ? await caches.open("niwasaki-koe").catch(() => null) : null; // 一度作った声は開き直しても使う
-  const wanted = [...linesOf("greet"), ...(mise.lines.chat || []), ...linesOf("bye"), ...FIXED.greet, ...FIXED.bye];
+  const wanted = [...linesOf("greet"), ...(mise.lines.chat || []), ...shots.map(shotSay), ...linesOf("bye"), ...FIXED.greet, ...FIXED.bye];
   for (const text of wanted) {
     if (voices.get(text)) continue;
     try {
@@ -314,9 +362,13 @@ async function prepareVoices() {
   if (wanted.some((t) => !voices.get(t))) setTimeout(prepareVoices, 30000); // できなかった声は、あとでもう一度
 }
 
-function say(text) {
+function showWords(text) {
   $("bubble").textContent = text;
   $("bubble").classList.remove("pop"); void $("bubble").offsetWidth; $("bubble").classList.add("pop");
+}
+
+function say(text) {
+  showWords(text);
   player.pause();
   const url = voices.get(text);
   if (!url) return; // 声ができていない言葉は吹き出しだけ。別の声には替えない
@@ -382,7 +434,7 @@ let chatTimer = null;
 function stopChat() { clearTimeout(chatTimer); chatTimer = null; }
 function startChat() {
   stopChat();
-  const rest = [...(mise.lines.chat || [])];
+  const rest = [...(view === "photo" ? [shotSay(shots[shotAt])] : []), ...(mise.lines.chat || [])]; // 写真の時間なら、まずその写真の話
   const next = () => {
     if (!watcher.stopped || !rest.length) return stopChat();
     if (talkingNow()) { chatTimer = setTimeout(next, 500); return; } // 声が終わるまで待つ
@@ -395,6 +447,73 @@ function startChat() {
   chatTimer = setTimeout(next, 500);
 }
 const talkingNow = () => $("cat").classList.contains("talking");
+
+// ---------- 写真の時間 ----------
+// ふだんは大きな福ちゃん。しばらくすると写真が大きく出て、福ちゃんは小さく吹き出しで話す。
+// 人が立ち止まっても写真のまま、小さい福ちゃんが声で話す。一周したら大きな福ちゃんに戻る。
+let shots = [];       // { id, say, url }。読めた写真だけ
+let view = "cat";     // "cat" | "photo"
+let viewSince = Date.now();
+let shotAt = 0;
+let shotsLeft = 0;    // この周であと何枚見せるか
+const shotSay = (s) => s?.say || FIXED.photo;
+
+// 一覧に合わせて写真を読み直す。一覧から消えた写真（取り消し・削除）はここで手放す
+async function loadShots(list) {
+  const had = new Map(shots.map((s) => [s.id, s]));
+  const next = [];
+  for (const p of list) {
+    const old = had.get(p.id);
+    if (old) { old.say = p.say; next.push(old); continue; }
+    try {
+      const r = await apiFetch(`/api/techo?do=shashin&id=${encodeURIComponent(p.id)}`);
+      if (r.ok) next.push({ ...p, url: URL.createObjectURL(await r.blob()) });
+    } catch (e) {}
+  }
+  const showing = view === "photo" ? shots[shotAt] : null;
+  shots = next;
+  if (showing && !next.includes(showing)) {
+    if (next.length) showShot((shotAt + 1) % next.length);
+    else showCat();
+  } else if (showing) shotAt = next.indexOf(showing);
+  for (const [id, s] of had) if (!next.some((n) => n.id === id)) setTimeout(() => URL.revokeObjectURL(s.url), 2000);
+  if (shots.length && asleep) wake(); // 写真があれば寝ないで見せる
+}
+
+function showShot(i) {
+  shotAt = i;
+  view = "photo";
+  viewSince = Date.now();
+  $("stageimg").src = shots[i].url;
+  $("stage").hidden = false;
+  document.body.classList.add("gallery");
+  if (watcher.stopped) say(shotSay(shots[i])); // 立ち止まっている人には声で
+  else showWords(shotSay(shots[i]));
+}
+
+function showCat() {
+  view = "cat";
+  viewSince = Date.now();
+  $("stage").hidden = true;
+  $("stageimg").removeAttribute("src");
+  document.body.classList.remove("gallery");
+  showWords("いらっしゃい。");
+}
+
+setInterval(() => {
+  if (!shopOpen || asleep) return;
+  const busy = talkingNow() || chatTimer !== null;
+  if (view === "cat") {
+    if (watcher.seen || busy) viewSince = Date.now(); // お客さんと話している間は数えない
+    else if (shots.length && Date.now() - viewSince >= GALLERY_AFTER) { shotsLeft = shots.length - 1; showShot(0); }
+    return;
+  }
+  if (!shots.length) return showCat();
+  if (busy || Date.now() - viewSince < PHOTO_MS) return;
+  if (shotsLeft <= 0 && !watcher.seen) return showCat();
+  shotsLeft--;
+  showShot((shotAt + 1) % shots.length);
+}, 1000);
 
 const video = $("video");
 const probe = $("probe");
@@ -433,7 +552,7 @@ function wake() {
 }
 $("sleep").addEventListener("click", wake);
 setInterval(() => {
-  if (shopOpen && !asleep && Date.now() - lastActive > NAP_AFTER) {
+  if (shopOpen && !asleep && !shots.length && Date.now() - lastActive > NAP_AFTER) { // 写真があれば寝ない
     asleep = true;
     $("sleep").classList.remove("hidden");
   }
@@ -452,14 +571,21 @@ $("openbtn").onclick = async () => {
   player.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
   player.play().catch(() => {});
   $("openbtn").disabled = true;
-  const rejected = await loadMise();
+  const hint = miseKey ? "" : await exchangeCode();
+  const rejected = hint ? false : await loadMise();
   $("openbtn").disabled = false;
-  if (rejected) {
-    $("openhint").textContent = "合言葉がちがうみたいだ。店主さんの合言葉を入れでけれ。";
+  if (hint || rejected) {
+    if (rejected) { miseKey = ""; saved.drop(KEY_NAME); drawCodeBox(); } // 合言葉が変わって鍵が古くなった時
+    $("openhint").textContent = hint || "鍵が古くなったみたいだ。店主さんの合言葉を入れでけれ。";
     return;
   }
+  // ここからお客さんの前に置くので、この端末の合言葉は消す。開いたままの手帳もこれで閉じる
+  saved.drop(CODE_NAME);
+  $("shopcode").value = "";
+  drawCodeBox();
   $("open").classList.add("hidden");
   shopOpen = true;
+  viewSince = Date.now();
   touch();
   keepScreenOn();
   startCamera();
@@ -480,6 +606,7 @@ closeBtn.addEventListener("pointerdown", () => {
 function closeShop() {
   stopChat();
   shopOpen = false;
+  showCat();
   if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
   $("openhint").textContent = "今日もおつかれさん。";

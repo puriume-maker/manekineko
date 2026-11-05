@@ -1,6 +1,6 @@
 // 声：招き猫のセリフを Gemini TTS（Laomedeia）で読み上げて WAV で返す。
 // 鍵はサーバー側の環境変数 GEMINI_API_KEY だけ。無ければ 204 を返し、ページは吹き出しだけ出す
-import { shopOK } from "./_claude.js";
+import { miseOK, shopOK } from "./_claude.js";
 
 const MODEL = "gemini-3.8-flash-tts";
 const VOICE = "Laomedeia";
@@ -9,7 +9,7 @@ const DIRECTION = "# DIRECTOR'S NOTES\nStyle: friendly, cheerful and a little pl
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  if (!shopOK(req)) return res.status(403).json({ error: "shop code" });
+  if (!shopOK(req) && !miseOK(req)) return res.status(403).json({ error: "shop code" });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return res.status(204).end();
 

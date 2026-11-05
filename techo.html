@@ -160,6 +160,23 @@
   @keyframes dot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .thinking i { animation: none; } }
 
+  /* 写真の下の「ええよ」と、投稿を消す */
+  .shot { min-width: 0; }
+  .eeyorow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 13px; color: var(--sub); }
+  .msg.owner .shot img { margin-bottom: 4px; }
+  .eeyo { min-height: 32px; padding: 0 10px; font: inherit; font-size: 13px; color: var(--leaf); background: var(--card); border: 1px solid var(--leaf); border-radius: 4px; cursor: pointer; }
+  .eeyo[aria-pressed="true"] { color: #fff; background: var(--leaf); }
+  .replytools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .postdel { min-height: 40px; padding: 0 0 0 6px; font: inherit; font-size: 13px; color: var(--sub); background: none; border: 0; cursor: pointer; }
+  .postdel:disabled { opacity: 0.45; cursor: default; }
+  .delask { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; font-size: 14px; line-height: 1.5; color: var(--warn); background: var(--card); border: 1px solid var(--warn); border-radius: 4px; }
+  .delask div { display: flex; gap: 8px; }
+  .delask button { min-height: 40px; padding: 0 14px; font: inherit; font-size: 15px; border-radius: 4px; cursor: pointer; }
+  .delyes { color: #fff; background: var(--warn); border: 0; }
+  .delno { color: var(--ink); background: none; border: 1px solid var(--field); }
+  .tomise { margin: 12px var(--pad) 0; text-align: right; font-size: 13px; }
+  .tomise a { color: var(--sub); }
+
   /* 入力：上の記録欄はふだん畳んで、緑のボタン一つ */
   .writeopen { display: block; width: calc(100% - 2 * var(--pad)); margin: 18px var(--pad) 10px; min-height: 58px; padding: 8px 12px; font: inherit; font-weight: 600; color: #fff; background: var(--leaf); border: 0; border-radius: 6px; box-shadow: 0 2px 5px rgba(60, 48, 20, 0.28); cursor: pointer; }
   .writehead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 18px var(--pad) 8px; }
@@ -244,6 +261,7 @@
         <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
       </div>
     </details>
+    <p class="tomise" id="tomisep" hidden><a id="tomise" target="_blank" rel="noopener noreferrer">店先の猫をひらく</a></p>
   </div>
 </main>
 
@@ -269,9 +287,16 @@ function showCodeNeeded() {
 
 let codeTimer;
 let codeAccepted = false;
+let codeSaved = Boolean(shopCode); // この端末に合言葉を置けているか
+// 同じ端末で店先の猫を開店すると、合言葉が消える。開いたままの手帳もここで閉じる（お客さんが手帳に戻れないように）
+function closeIfShopOpened() {
+  if (!codeSaved) return;
+  try { if (!localStorage.getItem("niwasaki_code")) location.reload(); } catch (err) {}
+}
+window.addEventListener("storage", closeIfShopOpened);
 $("shopcode").oninput = (e) => {
   shopCode = e.target.value.trim();
-  try { localStorage.setItem("niwasaki_code", shopCode); } catch (err) {}
+  try { localStorage.setItem("niwasaki_code", shopCode); codeSaved = Boolean(shopCode); } catch (err) { codeSaved = false; }
   $("needcode").hidden = true;
   clearTimeout(codeTimer);
   codeTimer = setTimeout(() => {
@@ -291,10 +316,24 @@ async function request(query, opts = {}) {
     throw new Error("code");
   }
   if (!r.ok) throw new Error("http " + r.status);
-  if (!codeAccepted) { codeAccepted = true; $("codefold").open = false; $("bottom").append($("codefold")); } // 通ったら合言葉欄はしまう
+  if (!codeAccepted) { // 通ったら合言葉欄はしまう
+    codeAccepted = true;
+    $("codefold").open = false;
+    $("bottom").insertBefore($("codefold"), $("tomisep"));
+    loadFrontLink();
+  }
   return r;
 }
 async function api(query, opts) { return (await request(query, opts)).json(); }
+
+// 店先の猫へのリンク。合言葉ではなく、店先だけの鍵を渡す。別のタブで開くので「戻る」で手帳に来られない
+async function loadFrontLink() {
+  try {
+    const { key } = await api("do=misekey");
+    $("tomise").href = `/#k=${key}`;
+    $("tomisep").hidden = false;
+  } catch (e) {}
+}
 
 // ---------- 今朝の福ちゃん。カメラの係を使う人には、写真の列も ----------
 let mornings = [];
@@ -377,7 +416,7 @@ async function loadMornings() {
   if (!shopCode) return;
   try {
     const data = await api("do=mornings");
-    mornings = data.mornings;
+    mornings = data.mornings.filter((m) => !gonePosts.has(m.id));
     if (!mornings.some((m) => m.date === chosen)) chosen = mornings[0]?.date ?? null;
     drawCard();
     drawDays();
@@ -427,10 +466,52 @@ function diaryPhoto(m, nth) {
     .catch((e) => { // 前の作りの写真は読み返せない
       const chip = document.createElement("div");
       chip.className = "photochip"; chip.textContent = "（写真を送りました）";
+      img.parentNode?.querySelector(".eeyorow")?.remove();
       img.replaceWith(chip);
     });
   if (photoWatcher) photoWatcher.observe(img); else img.loadPhoto();
   return img;
+}
+
+// ---------- 写真の下の「ええよ」：押された写真だけが店先に出る候補になる。もう一度押すと取り消す ----------
+const eeyoNow = new Map(); // このページで押したものを覚えておく（会話を読み直すまでの間も正しく出すため）
+let eeyoLine = Promise.resolve(); // 続けて押しても一つずつ送る
+
+function photoWithEeyo(img, m, n) {
+  const shot = document.createElement("div");
+  shot.className = "shot";
+  shot.append(img);
+  if (!m.session || !m.id || m.id === "sending") return shot; // 届く前の写真にはまだ押せない
+  const key = `${m.id}:${n}`;
+  const row = document.createElement("div");
+  row.className = "eeyorow";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "eeyo";
+  const paint = (on) => {
+    button.setAttribute("aria-pressed", String(on));
+    button.textContent = on ? "✓ ええよ" : "ええよ";
+    button.setAttribute("aria-label", on ? "店先に出してよい。押すと取り消します" : "この写真を店先に出してよい");
+  };
+  paint(eeyoNow.has(key) ? eeyoNow.get(key) : (m.eeyo || []).includes(n));
+  button.onclick = () => {
+    const on = button.getAttribute("aria-pressed") !== "true";
+    paint(on);
+    eeyoNow.set(key, on);
+    eeyoLine = eeyoLine.then(() => api("do=eeyo", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session: m.session, event: m.id, n, on }),
+    })).catch(() => {
+      paint(!on);
+      eeyoNow.set(key, !on);
+      notice = "「ええよ」を送れませんでした。もう一度お願いします。";
+      draw();
+    });
+  };
+  row.append("店先に", button);
+  shot.append(row);
+  return shot;
 }
 
 function bubble(m) {
@@ -442,9 +523,10 @@ function bubble(m) {
     box.append(who);
   }
   const local = m.localPhotos || localPhotos.get(m.id);
-  const pictures = local
+  const images = local
     ? local.map((url) => { const img = document.createElement("img"); img.src = url; img.alt = "記録の写真"; return img; })
     : Array.from({ length: m.photos || 0 }, (_, n) => diaryPhoto(m, n));
+  const pictures = images.map((img, n) => photoWithEeyo(img, m, n));
   if (pictures.length === 1) box.append(pictures[0]);
   else if (pictures.length) {
     const grid = document.createElement("div");
@@ -484,8 +566,8 @@ function allPosts() {
     if (m.comment && !p.about) p.about = m.about;
   };
   for (const part of [...archive, { session, messages: shown.messages, morning: shown.morning }]) {
-    if (part.morning) add({ ...part.morning, post: part.morning.id, who: "helper", session: part.session });
-    for (const m of part.messages) add({ ...m, session: part.session });
+    if (part.morning && !gonePosts.has(part.morning.id)) add({ ...part.morning, post: part.morning.id, who: "helper", session: part.session });
+    for (const m of part.messages) if (!gonePosts.has(m.post)) add({ ...m, session: part.session });
   }
   if (waitingText) add({ ...waitingText, post: waitingText.post || "sending", id: "sending" });
   return list;
@@ -532,9 +614,30 @@ function makeBox(id) {
   const hint = line("waithint", "福ちゃんが考え中です。終わると送れます。");
   row.append(input, button);
   form.append(row, hint);
-  area.append(opener, form);
+  const tools = document.createElement("div");
+  tools.className = "replytools";
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "postdel";
+  del.textContent = "消す";
+  del.setAttribute("aria-label", "この投稿を消す");
+  const ask = document.createElement("div");
+  ask.className = "delask";
+  ask.hidden = true;
+  const yes = document.createElement("button");
+  yes.type = "button"; yes.className = "delyes"; yes.textContent = "消す";
+  const no = document.createElement("button");
+  no.type = "button"; no.className = "delno"; no.textContent = "やめる";
+  const choices = document.createElement("div");
+  choices.append(yes, no);
+  ask.append("この投稿と返事を消します。店先の写真からも、福ちゃんのノートからも消えます。元に戻せません。", choices);
+  del.onclick = () => { ask.hidden = !ask.hidden; };
+  no.onclick = () => { ask.hidden = true; };
+  yes.onclick = () => { ask.hidden = true; removePost(box); };
+  tools.append(opener, del);
+  area.append(tools, ask, form);
   root.append(thread, area);
-  const box = { id, root, thread, area, opener, form, input, button, sig: null, post: null };
+  const box = { id, root, thread, area, opener, form, input, button, del, sig: null, post: null };
   const setOpen = (open) => {
     form.hidden = !open;
     opener.textContent = open ? "💬 閉じる" : input.value.trim() ? "💬 返事する（書きかけあり）" : "💬 返事する";
@@ -586,6 +689,7 @@ function drawPost(post, inCard) {
     box.thread.replaceChildren(...parts);
   }
   box.area.hidden = post.id === "sending"; // 届く前の投稿にはまだ返事を書けない
+  box.del.hidden = !post.head; // 消せるのは頭が読めている投稿だけ
   return box;
 }
 
@@ -596,6 +700,7 @@ function drawButtons() {
     box.button.disabled = wait;
     box.button.textContent = wait ? "待ってね" : "送る";
     box.form.classList.toggle("waiting", wait);
+    box.del.disabled = wait;
   }
   $("send").disabled = wait;
   $("sendhint").hidden = !wait;
@@ -606,14 +711,14 @@ function cardPost(posts) {
   const m = shownMorning();
   if (!m?.id) return null;
   return posts.find((p) => p.id === m.id)
-    || { id: m.id, head: { id: m.id, post: m.id, who: "helper", text: m.word, at: m.at }, items: [] };
+    || { id: m.id, head: { id: m.id, post: m.id, who: "helper", text: m.word, at: m.at, session: m.session }, items: [] };
 }
 
 function drawCardThread(posts) {
   const place = $("asathread");
   const card = cardPost(posts);
   if (!card) { place.replaceChildren(); return null; }
-  if (!card.head) card.head = { id: card.id, post: card.id, who: "helper", text: shownMorning().word, at: shownMorning().at };
+  if (!card.head) card.head = { id: card.id, post: card.id, who: "helper", text: shownMorning().word, at: shownMorning().at, session: shownMorning().session };
   const box = drawPost(card, true);
   if (place.firstChild !== box.root) place.replaceChildren(box.root);
   return card;
@@ -654,6 +759,7 @@ function draw() {
   const notes = $("talknotes");
   notes.replaceChildren();
   if (notice) notes.append(line("notice", notice));
+  if (deleteNote) notes.append(line(deleteWarn ? "notice" : "hello", deleteNote));
   if (shown.paused) notes.append(line("notice", "この会話はここまでです。次に書くと、新しいページから続きます。覚えたことはノートに残っています。"));
   if (shown.failed) notes.append(line("notice", "福ちゃんの調子が悪いようです。少し待って、もう一度書いてください。"));
   const posts = allPosts();
@@ -707,6 +813,60 @@ async function refresh(useSession) {
     }
     pollTimer = setTimeout(() => refresh(true), POLL_MS);
   }
+}
+
+// ---------- 投稿を消す ----------
+let deleteNote = "";
+let deleteWarn = false;
+const gonePosts = new Set(); // このページで消した投稿。読み直しの途中でも二度と出さない
+const DELETE_POLL_MS = 5000;
+
+async function removePost(box) {
+  const post = box.post;
+  if (isThinking() || !post?.head) return;
+  deleteNote = "消しています。";
+  deleteWarn = false;
+  draw();
+  try {
+    const { job } = await api("do=delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ session: post.head.session, post: post.id }),
+    });
+    gonePosts.add(post.id);
+    boxes.delete(post.id);
+    session = null;
+    deleteNote = "消しました。福ちゃんのノートは少しあとで片付きます。";
+    refresh();
+    loadMornings();
+    watchDelete(job, Date.now());
+  } catch (e) {
+    deleteWarn = true;
+    deleteNote = e.message === "http 409" ? "福ちゃんが動いている間は消せません。少し待ってもう一度お願いします。" : "消せませんでした。もう一度お願いします。";
+    draw();
+  }
+}
+
+async function watchDelete(job, since) {
+  try {
+    const r = await api(`do=deletejob&job=${encodeURIComponent(job)}`);
+    if (r.done) {
+      deleteWarn = r.left.length > 0;
+      deleteNote = deleteWarn
+        ? "福ちゃんのノートに、消した言葉が残っているかもしれません。ノートを開いて確かめてください。"
+        : "福ちゃんのノートからも消しました。";
+      if ($("shelf").open) loadShelf();
+      draw();
+      return;
+    }
+  } catch (e) {}
+  if (Date.now() - since > GIVE_UP_MS) {
+    deleteWarn = true;
+    deleteNote = "福ちゃんのノートの片付けに時間がかかっています。あとでノートを開いて確かめてください。";
+    draw();
+    return;
+  }
+  setTimeout(() => watchDelete(job, since), DELETE_POLL_MS);
 }
 
 // ---------- 前の会話の記録 ----------
@@ -907,6 +1067,7 @@ async function loadShelf() {
 $("shelf").ontoggle = () => { if ($("shelf").open) loadShelf(); };
 
 document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") closeIfShopOpened();
   if (document.visibilityState === "visible" && !isThinking()) { refresh(); loadMornings(); }
 });
 
