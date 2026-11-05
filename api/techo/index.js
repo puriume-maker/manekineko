@@ -183,6 +183,7 @@ function dropForeword(text) {
   const rows = text.split(/\n\s*\n/);
   const jp = /[\u3040-\u30ff\u4e00-\u9fff]/;
   while (rows.length > 1 && !jp.test(rows[0])) rows.shift();
+  if (!jp.test(rows[0])) return ""; // 日本語が一字もない言葉は作業のメモ。店主に見せない
   return rows.join("\n\n");
 }
 
@@ -399,7 +400,7 @@ async function morningSessions() {
 async function firstWord(sessionId) {
   const page = await client.beta.sessions.events.list(sessionId, { types: ["agent.message"], limit: 5 });
   for (const e of page.data) {
-    const text = e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+    const text = dropForeword(e.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim());
     if (text) return { id: e.id, text, at: e.processed_at };
   }
   return null;
