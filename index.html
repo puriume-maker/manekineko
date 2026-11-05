@@ -235,7 +235,8 @@ $("opencat").innerHTML = catSVG(AWAKE, true);
 $("sleepcat").innerHTML = catSVG(ASLEEP, false);
 
 // ---------- 決めごと ----------
-const STAY_MS = 4000;         // これだけとどまったら「立ち止まった」
+const STAY_MS = 800;          // これだけとどまったら声をかける（4秒は長すぎて誰も待たない、11/6 実家で）
+const REGREET_MS = 20 * 1000; // 一度あいさつしたら、このくらいの間は言い直さない（端で出たり入ったりする人にうるさくしない）
 const GONE_MS = 2500;         // これだけ見えなくなったら「行った」
 const FRAME_MS = 400;         // カメラを見る間隔
 const PIXEL_DIFF = 25;        // 背景とこれだけ違う点を「何かいる」と数える
@@ -436,6 +437,7 @@ function judge(w, gray, now) {
   return null;
 }
 
+let lastGreetAt = 0;
 function onWatch(event) {
   if (!event) { if (watcher.seen) touch(); return; }
   touch();
@@ -444,11 +446,13 @@ function onWatch(event) {
     catMove("wave"); // 声なしで手を振る
   } else if (event === "stop") {
     catMove("wave", "hop");
-    say(pickLine("greet"));
+    const again = Date.now() - lastGreetAt < REGREET_MS;
+    if (!again) say(pickLine("greet"));
+    lastGreetAt = Date.now();
     startChat();
   } else if (event === "leave") {
     stopChat();
-    say(pickLine("bye"));
+    if (Date.now() - lastGreetAt > REGREET_MS / 2) say(pickLine("bye")); // 出たり入ったりの人に毎回さよならを言わない
   }
 }
 
