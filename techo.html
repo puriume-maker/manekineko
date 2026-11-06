@@ -601,7 +601,7 @@ function makeTile(m, n, key) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ session: tile.m.session, event: tile.m.id, n, on }),
-    })).catch(() => {
+    })).then((d) => { if (on && d?.job) watchShashinJob(d.job); }).catch(() => {
       tile.paint(!on);
       eeyoNow.set(key, !on);
       $("shopnote").textContent = "店に出す印を送れませんでした。もう一度お願いします。";
@@ -1334,6 +1334,23 @@ async function askRedo(e) {
     await api("do=serifuredo", { method: "POST" });
   } catch (e) {}
   loadSerifu();
+}
+
+// 印を付けたあと、福ちゃんが売り込みの一言を書き終えるまで見せる（動いているか分からない、11/6 えみ）
+let shashinJobs = 0;
+async function watchShashinJob(job) {
+  shashinJobs++;
+  const note = $("shopnote");
+  note.textContent = "福ちゃんが売り込みの一言を考え中です（1分ほど）";
+  note.hidden = false;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, SERIFU_POLL_MS));
+    try { if ((await api(`do=serifujob&job=${encodeURIComponent(job)}`)).done) break; } catch (e) {}
+  }
+  if (--shashinJobs > 0) return;
+  note.textContent = "書けました。店先の猫は1分以内に流し始めます";
+  loadSerifu();
+  setTimeout(() => { if (note.textContent.startsWith("書けました")) note.hidden = true; }, 8000);
 }
 
 async function watchSerifu(job) {
