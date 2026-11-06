@@ -149,7 +149,7 @@
 <body>
 <div class="awning" aria-hidden="true"></div>
 <i class="hana a"></i><i class="hana b"></i><i class="hana c"></i><i class="hana d"></i><i class="hana e"></i><i class="hana f"></i>
-<div class="stage" id="stage" hidden><img id="stageimg" alt="店主さんが撮った写真"></div>
+<div class="stage" id="stage" hidden><img id="stageimg" alt="作り手さんが撮った写真"></div>
 <main>
   <section class="shop">
     <div class="cat" id="cat"></div>
@@ -175,7 +175,7 @@
   <h1>庭先の福ちゃん</h1>
   <p>お店を開ける時に押してね。<br>声とカメラが使えるようになるよ。<br>並べる品は、手帳で福ちゃんに話してね。</p>
   <p id="closenote" hidden>開店すると、この端末の手帳は閉じるよ。<br>手帳を見る時は、合言葉を入れ直してけれ。</p>
-  <label class="codebox" id="codebox">お店の合言葉 <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉"></label>
+  <label class="codebox" id="codebox">お店の合言葉 <input id="shopcode" type="password" autocomplete="off" placeholder="作り手さんの合言葉"></label>
   <p class="openhint" id="openhint"></p>
   <button class="main" id="openbtn">開店する</button>
   <a class="totecho" href="/techo.html">手帳へ</a>
@@ -249,14 +249,14 @@ const MOVED_RECENT = 3000;    // 話しかけるのは、このくらい前ま�
 const SETTLE_MS = 1500;       // カメラの明るさが落ち着くまでは人を探さない
 const NAP_AFTER = 60 * 1000;  // だれも来なければ寝る
 const MISE_EVERY = 60 * 1000;       // 福ちゃんの札とセリフと写真を読み直す間隔（取り消された写真もここで引っ込む）
-const GALLERY_AFTER = 30 * 1000;    // 大きな福ちゃんのまま、だれも立ち止まらなければ写真の時間へ
+const GALLERY_AFTER = 4 * 1000;     // 開店してこれだけ経ったら写真の時間へ（写真が主役、11/6）
 const PHOTO_MS = 12 * 1000;         // 写真一枚を見せる長さ
 
 // 福ちゃんの言葉が読めない時の決まり文句（黙らない）
 const FIXED = {
   greet: ["よぐ来たなぁ。", "よぐ来たなぁ、ゆっくり見でってけれ。"],
   bye: ["ありがとさん。まだ来てけれな。"],
-  photo: "店主さんの撮った写真だよ。見でってけれ。",
+  photo: "作り手さんの撮った写真だよ。見でってけれ。",
 };
 
 // ---------- 店先の鍵 ----------
@@ -289,7 +289,7 @@ const apiFetch = (url, opts = {}) => fetch(url, { ...opts, headers: { ...(opts.h
 async function exchangeCode() {
   try {
     const r = await fetch("/api/techo?do=misekey", { headers: { "x-shop-code": $("shopcode").value.trim() } });
-    if (r.status === 403) return "合言葉がちがうみたいだ。店主さんの合言葉を入れでけれ。";
+    if (r.status === 403) return "合言葉がちがうみたいだ。作り手さんの合言葉を入れでけれ。";
     if (!r.ok) throw new Error("http");
     miseKey = (await r.json()).key;
     saved.set(KEY_NAME, miseKey);
@@ -447,9 +447,9 @@ function onWatch(event) {
   } else if (event === "stop") {
     catMove("wave", "hop");
     const again = Date.now() - lastGreetAt < REGREET_MS;
-    if (!again) say(pickLine("greet"));
+    if (!again && !talkingNow()) say(pickLine("greet"));
     lastGreetAt = Date.now();
-    startChat();
+    if (view !== "photo") startChat(); // 写真が流れている間は写真の売り込みが本番。センサーは「いらっしゃい」を足すだけ（11/6）
   } else if (event === "leave") {
     stopChat();
     if (Date.now() - lastGreetAt > REGREET_MS / 2) say(pickLine("bye")); // 出たり入ったりの人に毎回さよならを言わない
@@ -476,14 +476,14 @@ function startChat() {
 }
 const talkingNow = () => $("cat").classList.contains("talking");
 
-// ---------- 写真の時間 ----------
-// ふだんは大きな福ちゃん。しばらくすると写真が大きく出て、福ちゃんは小さく吹き出しで話す。
-// 人が立ち止まっても写真のまま、小さい福ちゃんが声で話す。一周したら大きな福ちゃんに戻る。
+// ---------- 写真の時間（11/6 から主役） ----------
+// 開店して少ししたら、店に出す写真が順に流れ、福ちゃんは小さくなって一枚ごとに売り込みを声で言う。
+// 人がいてもいなくても止めない（カメラの判定は当てにならないので、写真と声を判定に頼らせない）。
+// 写真が一枚もない時だけ、大きな福ちゃんのまま。
 let shots = [];       // { id, say, url }。読めた写真だけ
 let view = "cat";     // "cat" | "photo"
 let viewSince = Date.now();
 let shotAt = 0;
-let shotsLeft = 0;    // この周であと何枚見せるか
 const shotSay = (s) => s?.say || FIXED.photo;
 
 // 一覧に合わせて写真を読み直す。一覧から消えた写真（取り消し・削除）はここで手放す
@@ -515,8 +515,7 @@ function showShot(i) {
   $("stageimg").src = shots[i].url;
   $("stage").hidden = false;
   document.body.classList.add("gallery");
-  if (watcher.stopped) say(shotSay(shots[i])); // 立ち止まっている人には声で
-  else showWords(shotSay(shots[i]));
+  say(shotSay(shots[i])); // 一枚ごとに声で売り込む
 }
 
 function showCat() {
@@ -532,15 +531,13 @@ setInterval(() => {
   if (!shopOpen || asleep) return;
   const busy = talkingNow() || chatTimer !== null;
   if (view === "cat") {
-    if (watcher.seen || busy) viewSince = Date.now(); // お客さんと話している間は数えない
-    else if (shots.length && Date.now() - viewSince >= GALLERY_AFTER) { shotsLeft = shots.length - 1; showShot(0); }
+    if (busy) viewSince = Date.now(); // 話している間は数えない
+    else if (shots.length && Date.now() - viewSince >= GALLERY_AFTER) showShot(0);
     return;
   }
   if (!shots.length) return showCat();
   if (busy || Date.now() - viewSince < PHOTO_MS) return;
-  if (shotsLeft <= 0 && !watcher.seen) return showCat();
-  shotsLeft--;
-  showShot((shotAt + 1) % shots.length);
+  showShot((shotAt + 1) % shots.length); // 一周しても止めずに回し続ける
 }, 1000);
 
 const video = $("video");
@@ -604,7 +601,7 @@ $("openbtn").onclick = async () => {
   $("openbtn").disabled = false;
   if (hint || rejected) {
     if (rejected) { miseKey = ""; saved.drop(KEY_NAME); drawCodeBox(); } // 合言葉が変わって鍵が古くなった時
-    $("openhint").textContent = hint || "鍵が古くなったみたいだ。店主さんの合言葉を入れでけれ。";
+    $("openhint").textContent = hint || "鍵が古くなったみたいだ。作り手さんの合言葉を入れでけれ。";
     return;
   }
   // ここからお客さんの前に置くので、この端末の合言葉は消す。開いたままの手帳もこれで閉じる

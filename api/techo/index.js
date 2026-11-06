@@ -811,7 +811,38 @@ async function eeyo(req, res) {
   const words = texts.filter((t) => !t.startsWith(PHOTO_MARK) && !t.startsWith(DATE_MARK) && !t.startsWith(REPLY_MARK)).join(" ").replace(/\s+/g, " ").slice(0, 120);
   const when = found.processed_at ? new Date(found.processed_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : "";
   await editShashinNote(ids().store, [id], on ? [`- ${id} / ${when} / ${n + 1}枚目 / 店主の言葉「${words || "写真だけ"}」`] : []);
-  return res.status(200).json({ on });
+  let job = null;
+  if (on) job = await startShashinJob(id, words, when).catch((e) => { console.error("shashin job", e.status); return null; }); // 一言が書けなくても印は付く
+  return res.status(200).json({ on, job });
+}
+
+// 印を付けたその場で、福ちゃんに店先の売り込みの一言を書いてもらう（朝まで待たない、11/6）
+// 同じ種類（serifu）の裏方の会話にして、終わったら消す。続けて何枚も付けた時は、どの会話も「一覧にあって photos に無い番号を全部」書くので、どれが最後でも揃う
+function shashinCue(id, words, when) {
+  return [
+    `${BACKSTAGE_MARK}店主が手帳で写真に「店に出す」の印を付けました。店主はいません。`,
+    "棚の mise.json と mise_shashin.md と mise_keshita.md を読み、mise.json の photos に次の写真の番号と say を足してください。mise.json はそのあと店先の猫が読み、写真を流しながら say を声で言います。",
+    `- 番号：${id}（${when || "日付不明"} の写真、店主の言葉「${words || "写真だけ"}」）`,
+    "- mise_shashin.md にあって photos に無い番号が他にもあれば、それも同じように足す",
+    "- say は、口下手な店主の代わりにお客さんへ売り込む秋田弁の一言。写真の説明ではなく、その品を手に取りたくなる言葉にする。30字以内、絵文字や記号なし。根拠は店主の言葉と、棚の記録にあるその品の話（育てた時の苦労、摘んだ日、使い方）だけ。あなたはその写真を見ていないので、書いていない色や形や様子を作らない。店主の名前、住所、家族、お客さんのことは書かない。効能や値引きは言わない",
+    "- 同じ番号がすでに photos にあれば say だけを直す。他の photos、品、日付、セリフは一字も変えない。mise.json が無ければ、日付は今日、items と lines は空で作る。JSON として正しく保つ",
+    "- mise_keshita.md の言葉と同じ言葉や言い換えは書かない。mise_shashin.md と mise_keshita.md は書き換えない",
+    "- 店主に見せる言葉はいりません。終わったら「済みました」とだけ書いてください",
+  ].join("\n");
+}
+
+async function startShashinJob(id, words, when) {
+  const c = ids();
+  const job = await client.beta.sessions.create({
+    agent: c.agent,
+    environment_id: c.environment,
+    budget: BUDGET,
+    title: "写真の一言",
+    metadata: { kind: "serifu" },
+    resources: [{ type: "memory_store", memory_store_id: c.store, access: "read_write", instructions: "店主のノート。" }],
+    initial_events: [{ type: "user.message", content: [{ type: "text", text: shashinCue(id, words, when) }] }],
+  });
+  return job.id;
 }
 
 // ---------- 投稿を消す ----------

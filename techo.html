@@ -322,7 +322,7 @@
         <summary>お店の合言葉</summary>
         <div class="foldbody code">
           <p class="needcode" id="needcode" hidden>合言葉を入れると、福ちゃんの手帳が開きます。</p>
-          <input id="shopcode" type="password" autocomplete="off" placeholder="店主さんの合言葉" aria-label="お店の合言葉">
+          <input id="shopcode" type="password" autocomplete="off" placeholder="作り手さんの合言葉" aria-label="お店の合言葉">
         </div>
       </details>
     </div>
@@ -380,7 +380,7 @@ async function request(query, opts = {}) {
   const r = await fetch(`/api/techo?${query}`, { ...opts, headers: { ...(opts.headers || {}), "x-shop-code": shopCode } });
   if (r.status === 403) {
     $("asa").hidden = true;
-    $("needcode").textContent = "合言葉がちがうようです。店主さんの合言葉を入れてください。";
+    $("needcode").textContent = "合言葉がちがうようです。作り手さんの合言葉を入れてください。";
     showCodeNeeded();
     throw new Error("code");
   }
