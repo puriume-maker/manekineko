@@ -16,7 +16,7 @@ Built with Claude: Japan 2026 の提出作品。小さく作って小さく売�
 
 頭は一つ（Claude Managed Agents）で、顔が二つあります。猫は店番ではなく、作り手の代わりに語る語り手です。会計も、在庫も、お客さんとの会話もしません。
 
-**お店の手帳**（`techo.html`、スマホのホーム画面に置く）
+**手帳**（`techo.html`、スマホのホーム画面に置く）
 
 - 写真（4枚まで）と一言を書くと、福ちゃんが読んで短く返事をします。聞きたいことを書けば相談になります
 - 初日は「何を作っていますか」など一つずつ聞いて、最初のノートを作ります
@@ -48,7 +48,7 @@ Built with Claude: Japan 2026 の提出作品。小さく作って小さく売�
           ▼
    Vercel の API（api/techo） ─ 声（api/koe → Gemini TTS）
         ▲                 ▲
-  お店の手帳（techo.html）  店先の猫（index.html）
+  手帳（techo.html）  店先の猫（index.html）
 ```
 
 | 場所 | 役割 |
