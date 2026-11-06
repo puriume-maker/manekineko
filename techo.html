@@ -1391,7 +1391,8 @@ function drawKouho(d) {
   if (!d.photos.length) body.append(line("quiet", "まだおすすめはありません。"));
   else {
     const when = d.date ? dayLabel(d.date) : "";
-    body.append(line("quiet", [when, d.reason].filter(Boolean).join("　")));
+    const reason = d.reason && !d.reason.startsWith("店主の求め") ? d.reason : ""; // 予定がきっかけの時だけ添える（11/6 えみ）
+    body.append(line("quiet", [when, reason].filter(Boolean).join("　")));
     for (const p of d.photos) body.append(kouhoRow(p));
   }
   paintKouhoAsk();
