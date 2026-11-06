@@ -203,6 +203,12 @@
   .serifurow button { flex: none; width: 40px; height: 40px; font: inherit; color: var(--sub); background: none; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
   .serifuredo { width: 100%; margin-top: 10px; min-height: 44px; padding: 0 14px; font: inherit; font-size: 15px; color: #fff; background: var(--ink); border: 0; border-radius: 8px; cursor: pointer; }
   .serifuredo:disabled, .serifurow button:disabled { opacity: 0.45; cursor: default; }
+  .kouho { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-top: 1px solid var(--line); }
+  .kouho img { display: block; width: 84px; height: 84px; object-fit: cover; border-radius: 6px; background: var(--line); }
+  .kouho .say { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.5; }
+  .kouho .why { margin: 2px 0 6px; color: var(--sub); font-size: 13px; line-height: 1.5; }
+  .kouho .linebtn { min-height: 40px; padding: 4px 12px; font-size: 14px; }
+  .kouho .done { color: var(--sub); font-size: 14px; }
   .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .sh { position: relative; display: block; aspect-ratio: 1; width: 100%; padding: 0; border: 0; border-radius: 6px; background: var(--line); cursor: pointer; }
   .sh img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
@@ -306,8 +312,15 @@
     </details>
 
     <section class="card">
+      <h3>福ちゃんのおすすめ</h3>
+      <div id="kouhobody"><p class="quiet">読み込み中です。</p></div>
+      <button class="linebtn" id="kouhoask" type="button">福ちゃんにおすすめを聞く</button>
+      <p class="notice" id="kouhonote" hidden></p>
+    </section>
+
+    <section class="card">
       <h3>店に出す写真</h3>
-      <p class="quiet" id="shophint">押すと✓が付いて、店先に出せる写真になります。福ちゃんが毎朝この中から選びます。</p>
+      <p class="quiet" id="shophint">押すと✓が付いて、店先に出せる写真になります。印を付けた写真が店先に流れます。</p>
       <p class="notice" id="shopnote" hidden></p>
       <div class="grid" id="shopgrid" hidden></div>
       <button class="more" id="morephotos" type="button" hidden>もっと前の写真を見る</button>
@@ -370,7 +383,7 @@ $("shopcode").oninput = (e) => {
   codeTimer = setTimeout(() => {
     if (!shopCode) return;
     if ($("shelf").open) loadShelf();
-    if (tab === "shop") loadSerifu();
+    if (tab === "shop") { loadSerifu(); loadKouho(); }
     loadMornings();
     refresh();
   }, 500);
@@ -408,7 +421,7 @@ function setTab(name) {
   $("tabnote").setAttribute("aria-selected", String(name === "note"));
   $("tabshop").setAttribute("aria-selected", String(name === "shop"));
   window.scrollTo(0, tabScroll[name]);
-  if (name === "shop") { loadSerifu(); draw(); }
+  if (name === "shop") { loadSerifu(); loadKouho(); draw(); }
 }
 $("tabnote").onclick = () => setTab("note");
 $("tabshop").onclick = () => setTab("shop");
@@ -624,7 +637,9 @@ function drawShopPhotos(posts = allPosts()) {
         tiles.set(key, tile);
         if (tile.dead) continue;
         tile.m = m;
-        tile.paint(eeyoNow.has(key) ? eeyoNow.get(key) : (m.eeyo || []).includes(n));
+        const on = eeyoNow.has(key) ? eeyoNow.get(key) : (m.eeyo || []).includes(n);
+        tile.paint(on);
+        kouhoRows.get(key)?.paint(on); // おすすめの段の「出しました ✓」も格子と同じに
         wanted.push(tile);
       }
     }
@@ -633,7 +648,7 @@ function drawShopPhotos(posts = allPosts()) {
   if (wanted.length !== grid.children.length || wanted.some((t, i) => grid.children[i] !== t)) grid.replaceChildren(...wanted);
   grid.hidden = !wanted.length;
   $("shophint").textContent = wanted.length
-    ? "押すと✓が付いて、店先に出せる写真になります。福ちゃんが毎朝この中から選びます。"
+    ? "押すと✓が付いて、店先に出せる写真になります。印を付けた写真が店先に流れます。"
     : "記録に写真を送ると、ここに並びます。";
   $("morephotos").hidden = nextPage === null;
 }
@@ -1353,6 +1368,117 @@ async function watchShashinJob(job) {
   setTimeout(() => { if (note.textContent.startsWith("書けました")) note.hidden = true; }, 8000);
 }
 
+// ---------- 福ちゃんのおすすめ：福ちゃんが記録から候補を選び、店主が「店に出す」を押した分だけ店先に出る ----------
+let kouhoJob = null;      // 走っているおすすめ選びの会話
+let kouhoWatching = null; // どの会話の終わりを待っているか
+const kouhoRows = new Map(); // 写真（event:n） → おすすめの段の部品。格子の✓と揃えるため
+
+async function loadKouho() {
+  const body = $("kouhobody");
+  if (!shopCode) { body.innerHTML = '<p class="quiet">合言葉を入れると読めます。</p>'; return; }
+  try {
+    drawKouho(await api("do=kouho"));
+  } catch (e) {
+    body.innerHTML = '<p class="quiet">読めませんでした。もう一度開いてみてください。</p>';
+  }
+}
+
+function drawKouho(d) {
+  kouhoJob = d.job;
+  const body = $("kouhobody");
+  body.replaceChildren();
+  kouhoRows.clear();
+  if (!d.photos.length) body.append(line("quiet", "まだおすすめはありません。"));
+  else {
+    const when = d.date ? dayLabel(d.date) : "";
+    body.append(line("quiet", [when, d.reason].filter(Boolean).join("　")));
+    for (const p of d.photos) body.append(kouhoRow(p));
+  }
+  paintKouhoAsk();
+  if (d.job && kouhoWatching !== d.job) { kouhoWatching = d.job; watchKouho(d.job); }
+}
+
+function paintKouhoAsk() {
+  const ask = $("kouhoask");
+  ask.disabled = Boolean(kouhoJob);
+  ask.textContent = kouhoJob ? "福ちゃんが選んでいます（1分ほど）" : "福ちゃんにおすすめを聞く";
+}
+
+function kouhoRow(p) {
+  const row = document.createElement("div");
+  row.className = "kouho";
+  const img = diaryPhoto({ session: p.session, id: p.event }, p.n);
+  const text = document.createElement("div");
+  const say = document.createElement("p");
+  say.className = "say"; say.textContent = p.say;
+  const why = document.createElement("p");
+  why.className = "why"; why.textContent = p.why;
+  const act = document.createElement("div");
+  text.append(say, why, act);
+  row.append(img, text);
+  const key = `${p.event}:${p.n}`;
+  row.paint = (on) => {
+    act.replaceChildren();
+    if (on) { act.append(line("done", "出しました ✓")); return; }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "linebtn";
+    btn.textContent = "店に出す";
+    btn.onclick = () => {
+      btn.disabled = true;
+      $("shopnote").hidden = true;
+      eeyoLine = eeyoLine.then(() => api("do=eeyo", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ session: p.session, event: p.event, n: p.n, on: true }),
+      })).then((d) => {
+        eeyoNow.set(key, true);
+        row.paint(true);
+        drawShopPhotos(); // 格子の✓も付ける
+        if (d?.job) watchShashinJob(d.job);
+      }).catch(() => {
+        btn.disabled = false;
+        $("shopnote").textContent = "店に出す印を送れませんでした。もう一度お願いします。";
+        $("shopnote").hidden = false;
+      });
+    };
+    act.append(btn);
+  };
+  row.paint(eeyoNow.has(key) ? eeyoNow.get(key) : p.marked);
+  kouhoRows.set(key, row);
+  return row;
+}
+
+$("kouhoask").onclick = async () => {
+  const ask = $("kouhoask");
+  ask.disabled = true; // 押したらすぐ待ちの表示に。二度押させない
+  ask.textContent = "福ちゃんが選んでいます（1分ほど）";
+  $("kouhonote").hidden = true;
+  try {
+    const d = await api("do=kouho", { method: "POST" });
+    kouhoJob = d.job;
+    if (d.job && kouhoWatching !== d.job) { kouhoWatching = d.job; watchKouho(d.job); }
+    else if (!d.job) loadKouho();
+  } catch (e) {
+    kouhoJob = null;
+    paintKouhoAsk();
+    $("kouhonote").textContent = "福ちゃんに頼めませんでした。もう一度お願いします。";
+    $("kouhonote").hidden = false;
+  }
+};
+
+// おすすめ選びが済むまで待って、済んだら描き直す（watchShashinJob と同じ流儀）
+async function watchKouho(job) {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, SERIFU_POLL_MS));
+    if (kouhoWatching !== job) return;
+    try { if ((await api(`do=serifujob&job=${encodeURIComponent(job)}`)).done) break; } catch (e) {}
+  }
+  kouhoWatching = null;
+  kouhoJob = null;
+  loadKouho();
+}
+
 async function watchSerifu(job) {
   if (serifuJob !== job) return;
   try {
@@ -1370,7 +1496,7 @@ async function watchSerifu(job) {
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") closeIfShopOpened();
-  if (document.visibilityState === "visible" && !isThinking()) { refresh(); loadMornings(); if (tab === "shop") loadSerifu(); }
+  if (document.visibilityState === "visible" && !isThinking()) { refresh(); loadMornings(); if (tab === "shop") { loadSerifu(); loadKouho(); } }
 });
 
 draw();

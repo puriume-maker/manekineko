@@ -17,6 +17,9 @@
 //   POST /api/techo?do=serifuredo             消した分を福ちゃんに書き足してもらう
 //   GET  /api/techo?do=serifujob&job=sesn_…   書き足しが済んだか
 //   POST /api/techo?do=katazuke               札とセリフを片づける（写真と店に出す印と消したセリフの一覧はそのまま）
+//   POST /api/techo?do=kouho                  福ちゃんに店先に出す写真のおすすめを選んでもらう（記録の写真の一覧を作り直してから、裏方の会話を起こす）
+//   GET  /api/techo?do=kouho                  福ちゃんのおすすめ（棚の mise_kouho.md を検証して、写真の場所と「店に出す」の印の有無を添えて返す）
+//   GET  /api/techo?do=serifujob&job=sesn_…   おすすめ選びが済んだかも、これで見る
 // ★だけは店先の鍵でも読める。それ以外は合言葉が要る。
 // 費用がかかるので、SHOP_CODE が未設定なら閉じる（ここだけ既存の猫のAPIより厳しい）。
 import crypto from "node:crypto";
@@ -32,7 +35,7 @@ const REPLY_MARK = "【返事先:"; // どの投稿への返事かを助手に�
 const REPLY_END = "への返事です。";
 const FIRST_DAY_CUE = `${BACKSTAGE_MARK}店主がはじめて手帳を開きました。棚は空です。短いあいさつのあとで、初日の聞き取りの最初の一つだけを聞いてください。店主に見せる言葉は日本語で、作業の話はしないでください。`;
 const INTERVIEW_ANSWERS = 3; // 初日の聞き取りの問いの数。この数だけ答えるまで、手帳は記録欄を開いておく
-const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md", "/mise_shashin.md", "/mise_keshita.md"]); // 福ちゃんと猫が書くもの。これだけなら棚はまだ空とみなす
+const NOT_NOTES = new Set(["/yume.md", "/mise_kiroku.md", "/mise_shashin.md", "/mise_keshita.md", "/mise_ichiran.md", "/mise_kouho.md"]); // 福ちゃんと猫と手帳が書くもの。これだけなら棚はまだ空とみなす
 const DIARY_SESSIONS = 10; // 一度に読む過去の会話の数
 const DIARY_SCAN = 200;
 const MAX_PHOTO_BASE64 = 4_200_000; // 全部の写真の合計。Vercel の本文上限 4.5MB の内側
@@ -48,6 +51,11 @@ const SHASHIN_HEAD = "# 店先に出してよい写真（店主が「店に出�
 const KESHITA_PATH = "/mise_keshita.md"; // 店主が消したセリフ。手帳が書き、福ちゃんは読むだけ。ここにある言葉は店先に出さない
 const KESHITA_HEAD = "# 店主が消した店先のセリフ（手帳が書くノートなので書き換えない。同じ言葉も言い換えも mise.json に書かない）";
 const MAX_KESHITA = 200;
+const ICHIRAN_PATH = "/mise_ichiran.md"; // 記録に送った写真ぜんぶの一覧。手帳が書き、福ちゃんはおすすめを選ぶ時に読むだけ
+const ICHIRAN_HEAD = "# 記録の写真の一覧（手帳が書くノートなので書き換えない。店先に出すかは店主が決める）";
+const KOUHO_PATH = "/mise_kouho.md"; // 福ちゃんのおすすめ。福ちゃんが書き、手帳が検証して読む
+const MAX_KOUHO = 6;
+const MAX_SAY = 30;
 const LINE_KINDS = ["greet", "chat", "bye"];
 const MAX_FRONT_PHOTOS = 8;
 const META_KEYS = 5; // 印ひと種類に使う metadata の数。合計で16個の上限の内側に収める
@@ -96,7 +104,7 @@ function pack(prefix, list) {
   return out;
 }
 const goneOf = (s) => new Set(unpack(s?.metadata, "gone")); // 消した投稿の番号
-const isHidden = (s) => ["yume", "keshi", "serifu"].includes(s.metadata?.kind); // 夢と片付けと書き足しは店主と話す場所ではない
+const isHidden = (s) => ["yume", "keshi", "serifu", "kouho"].includes(s.metadata?.kind); // 夢と片付けと書き足しとおすすめ選びは店主と話す場所ではない
 
 async function ourSession(sessionId) {
   if (!/^sesn_\w+$/.test(sessionId)) return null;
@@ -338,7 +346,15 @@ async function say(req, res) {
     if (replyPost) content.push({ type: "text", text: `${REPLY_MARK}${replyPost}】${about}${REPLY_END}` });
     if (text) content.push({ type: "text", text });
     const sent = await client.beta.sessions.events.send(sessionId, { events: [{ type: "user.message", content }] });
-    return { session: sessionId, eventId: sent.data?.[0]?.id ?? null };
+    const eventId = sent.data?.[0]?.id ?? null;
+    // 写真の一覧（福ちゃんがおすすめを選ぶ時に読む）にも足しておく。書けなくても投稿は届いている
+    if (photos.length && eventId) {
+      const when = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+      const words = ownerWords(text);
+      await editListNote(c.store, ICHIRAN_PATH, ICHIRAN_HEAD, [], photos.map((_, n) => photoLine(photoIdOf(sessionId, eventId, n), when, n, words)))
+        .catch((e) => console.error("ichiran add", e.status));
+    }
+    return { session: sessionId, eventId };
   };
 
   let sessionId = (await currentSession(c)).id;
@@ -468,6 +484,9 @@ async function findNote(store, notePath) {
 
 const PHOTO_ID = /^p_[0-9a-f]{12}$/;
 const photoIdOf = (sessionId, event, n) => `p_${crypto.createHash("sha256").update(`${sessionId}|${event}|${n}`).digest("hex").slice(0, 12)}`;
+// 写真の一覧に載せる店主の言葉（印の行を除いた本文を120字まで）と、一覧の一行の形。mise_shashin.md も mise_ichiran.md も同じ形
+const ownerWords = (text) => text.replace(/\s+/g, " ").trim().slice(0, 120);
+const photoLine = (id, when, n, words) => `- ${id} / ${when} / ${n + 1}枚目 / 店主の言葉「${words || "写真だけ"}」`;
 const shortText = (v, max) => typeof v === "string" && v.trim() && v.length <= max && !/[\u0000-\u001f<>]/.test(v);
 const whole = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
 const realDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00+09:00`));
@@ -575,15 +594,17 @@ function withoutKeshita(data, rows) {
   };
 }
 
-async function runningSerifuJob() {
+// 走っている裏方の会話（書き足し serifu か、おすすめ選び kouho）を探す。終わった会話は serifujob の後始末で消えている
+async function runningJob(kind) {
   const c = ids();
   let seen = 0;
   for await (const s of client.beta.sessions.list({ agent_id: c.agent, memory_store_id: c.store, order: "desc", limit: 20 })) {
     if (++seen > 20) break;
-    if (s.metadata?.kind === "serifu") return s.id;
+    if (s.metadata?.kind === kind) return s.id;
   }
   return null;
 }
+const runningSerifuJob = () => runningJob("serifu");
 
 async function serifu(req, res) {
   const { store } = ids();
@@ -668,16 +689,19 @@ async function serifuRedo(req, res) {
   return res.status(200).json({ job: job.id });
 }
 
+// 書き足しとおすすめ選びの後始末。消したセリフの「未」を「済」にするのは書き足しの時だけ
 async function finishSerifu(s) {
   const { store } = ids();
-  const { note, rows } = await readKeshita(store);
-  if (rows.some((r) => r.waiting)) await writeKeshita(store, note, rows.map((r) => ({ ...r, waiting: false })));
+  if (s.metadata?.kind === "serifu") {
+    const { note, rows } = await readKeshita(store);
+    if (rows.some((r) => r.waiting)) await writeKeshita(store, note, rows.map((r) => ({ ...r, waiting: false })));
+  }
   await client.beta.sessions.delete(s.id).catch((e) => console.error("serifu delete", e.status));
 }
 
 async function serifuJob(req, res) {
   const s = await ourSession(String(req.query.job || ""));
-  if (!s || s.metadata?.kind !== "serifu") return res.status(200).json({ done: true });
+  if (!s || !["serifu", "kouho"].includes(s.metadata?.kind)) return res.status(200).json({ done: true });
   if (!(await keshiEnded(s))) return res.status(200).json({ done: false });
   await finishSerifu(s);
   return res.status(200).json({ done: true });
@@ -769,20 +793,28 @@ async function shashin(req, res) {
   return res.status(200).end(stripJpeg(Buffer.from(image.source.data, "base64")));
 }
 
-// 福ちゃんが読む「ええよ」の一覧を直す。remove の行を消し、add の行を足す
-async function editShashinNote(store, remove, add) {
-  const note = await findNote(store, SHASHIN_PATH);
-  const full = note && await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
-  const rows = (full?.content ?? "").split("\n").filter((l) => l.startsWith("- ") && !remove.some((id) => l.startsWith(`- ${id} `)));
-  rows.push(...add);
+// 手帳が書く一覧のノート（「ええよ」の一覧、記録の写真の一覧）をまるごと書く。行が無ければノートを消す
+async function writeListNote(store, note, notePath, head, rows) {
   if (!rows.length) {
     if (note) await client.beta.memoryStores.memories.delete(note.id, { memory_store_id: store });
     return;
   }
-  const content = `${SHASHIN_HEAD}\n\n${rows.join("\n")}\n`;
+  const content = `${head}\n\n${rows.join("\n")}\n`;
   if (note) await client.beta.memoryStores.memories.update(note.id, { memory_store_id: store, content });
-  else await client.beta.memoryStores.memories.create(store, { path: SHASHIN_PATH, content });
+  else await client.beta.memoryStores.memories.create(store, { path: notePath, content });
 }
+
+// 一覧のノートを直す。remove の番号の行を消し、add の行を足す
+async function editListNote(store, notePath, head, remove, add) {
+  const note = await findNote(store, notePath);
+  const full = note && await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
+  const rows = (full?.content ?? "").split("\n").filter((l) => l.startsWith("- ") && !remove.some((id) => l.startsWith(`- ${id} `)));
+  rows.push(...add);
+  await writeListNote(store, note, notePath, head, rows);
+}
+
+// 福ちゃんが読む「ええよ」の一覧を直す
+const editShashinNote = (store, remove, add) => editListNote(store, SHASHIN_PATH, SHASHIN_HEAD, remove, add);
 
 // 手帳の「ええよ」。押すと店先に出す候補になり、もう一度押すと取り消す
 async function eeyo(req, res) {
@@ -808,9 +840,9 @@ async function eeyo(req, res) {
     throw e;
   }
   const id = photoIdOf(session.id, event, n);
-  const words = texts.filter((t) => !t.startsWith(PHOTO_MARK) && !t.startsWith(DATE_MARK) && !t.startsWith(REPLY_MARK)).join(" ").replace(/\s+/g, " ").slice(0, 120);
+  const words = ownerWords(texts.filter((t) => !t.startsWith(PHOTO_MARK) && !t.startsWith(DATE_MARK) && !t.startsWith(REPLY_MARK)).join(" "));
   const when = found.processed_at ? new Date(found.processed_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : "";
-  await editShashinNote(ids().store, [id], on ? [`- ${id} / ${when} / ${n + 1}枚目 / 店主の言葉「${words || "写真だけ"}」`] : []);
+  await editShashinNote(ids().store, [id], on ? [photoLine(id, when, n, words)] : []);
   let job = null;
   if (on) job = await startShashinJob(id, words, when).catch((e) => { console.error("shashin job", e.status); return null; }); // 一言が書けなくても印は付く
   return res.status(200).json({ on, job });
@@ -843,6 +875,127 @@ async function startShashinJob(id, words, when) {
     initial_events: [{ type: "user.message", content: [{ type: "text", text: shashinCue(id, words, when) }] }],
   });
   return job.id;
+}
+
+// ---------- 福ちゃんのおすすめ ----------
+// 福ちゃんは写真の番号（p_…）を他に知る手段がないので、手帳が記録の写真ぜんぶの一覧を棚に置く（mise_ichiran.md）。
+// 福ちゃんはそれと記録を読んで候補を mise_kouho.md に書き、手帳はそれを検証して店主に見せる。店先に出るのは店主が「店に出す」を押した時だけ
+
+// 記録の写真を新しい順に集める（diary と同じ走査。消した投稿と裏方の会話は除く）。
+// wanted を渡すと、その番号が全部見つかった所で止める
+async function scanPhotos(wanted = null) {
+  const c = ids();
+  const picked = [];
+  let scanned = 0;
+  for await (const s of client.beta.sessions.list({ agent_id: c.agent, memory_store_id: c.store, order: "desc", limit: 50 })) {
+    if (++scanned > DIARY_SCAN) break;
+    if (!isHidden(s)) picked.push(s);
+  }
+  const found = [];
+  const have = new Set();
+  for (let i = 0; i < picked.length; i += DIARY_SESSIONS) {
+    const batch = await Promise.all(picked.slice(i, i + DIARY_SESSIONS).map(async (s) => {
+      const events = [];
+      for await (const e of client.beta.sessions.events.list(s.id, { limit: 1000 })) events.push(e);
+      const images = new Map(events.filter((e) => e.type === "user.message").map((e) => [e.id, e.content.filter(isOwnImage).length]));
+      const out = [];
+      for (const m of readTalk(events, s).messages) {
+        if (m.who !== "owner" || !m.photos) continue;
+        const when = m.at ? new Date(m.at).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : "";
+        for (let n = 0; n < (images.get(m.id) || 0); n++) { // 前の作りの写真（絵が履歴に無い）は載せない
+          out.push({ id: photoIdOf(s.id, m.id, n), session: s.id, event: m.id, n, when, words: ownerWords(m.text), marked: (m.eeyo || []).includes(n) });
+        }
+      }
+      return out;
+    }));
+    for (const p of batch.flat()) { found.push(p); have.add(p.id); }
+    if (wanted && [...wanted].every((id) => have.has(id))) break;
+  }
+  return found;
+}
+
+// 写真の一覧をまるごと作り直す（古い投稿の写真も入るように）。一枚も無ければノートを消す
+async function rebuildIchiran(store) {
+  const photos = await scanPhotos();
+  const note = await findNote(store, ICHIRAN_PATH);
+  await writeListNote(store, note, ICHIRAN_PATH, ICHIRAN_HEAD, photos.map((p) => photoLine(p.id, p.when, p.n, p.words)));
+}
+
+// 棚の mise_kouho.md は福ちゃんの手書きなので、形が合う行だけ店主に見せる。番号は写真の一覧と照らすまで信じない（kouho）
+function checkKouho(text) {
+  const out = { date: null, reason: null, rows: [] };
+  const seen = new Set();
+  for (const line of text.split("\n")) {
+    const d = /^日付:\s*(\S+)\s*$/.exec(line);
+    if (d) { if (realDate(d[1])) out.date = d[1]; continue; }
+    const r = /^きっかけ:\s*(.*?)\s*$/.exec(line);
+    if (r) { if (shortText(r[1], 60)) out.reason = r[1]; continue; }
+    const m = /^- (p_[0-9a-f]{12}) \/ (.*?) \/ (.*?)\s*$/.exec(line);
+    if (!m || seen.has(m[1]) || !shortText(m[2], MAX_SAY) || !shortText(m[3], MAX_SAY)) continue;
+    seen.add(m[1]);
+    out.rows.push({ id: m[1], say: m[2], why: m[3] });
+    if (out.rows.length === MAX_KOUHO) break;
+  }
+  return out;
+}
+
+function kouhoCue() {
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+  return [
+    `${BACKSTAGE_MARK}店主が手帳で「福ちゃんにおすすめを聞く」を押しました。店主はいません。`,
+    "棚を全部読んでください（mise_ichiran.md、mise_shashin.md、mise_keshita.md、kiroku、shigoto、keikaku）。mise_ichiran.md は、店主が記録に送った写真ぜんぶの一覧です。",
+    "そのうえで、mise_ichiran.md にある番号の中から、店先に出すとよい写真を3〜6枚選び、棚（mise.json と同じ場所）に mise_kouho.md という名前のノートを次の形で書いてください（すでにあればまるごと書き直す。棚の外には書かない）。店主が手帳で見て、「店に出す」を押した写真だけが店先に出ます。",
+    "",
+    "# 福ちゃんのおすすめ（店先に出す候補。店主が「店に出す」を押すまで店先には出ない）",
+    `日付: ${today}`,
+    "きっかけ: （選んだ時に頭にあった予定や季節。例：11月9日のマルシェに向けて）",
+    "",
+    "- p_で始まる番号 / 売り込みの一言（秋田弁30字以内） / 選んだ理由（標準語で店主向け、30字以内）",
+    "",
+    "- 番号は mise_ichiran.md にあるものだけ。一覧にない番号は書かない。mise_shashin.md にすでにある番号（印が付いている）は選ばない。一覧が空なら、ノートは「候補なし」の一行だけにする",
+    "- 選ぶ基準：売り物になりそうなもの、育てた苦労や手間が記録にあるもの、直近の出店や納品（keikaku.md）に合うもの、季節が今に合うもの。あなたはその写真を見ていないので、一覧の店主の言葉と棚の記録の内容だけを根拠にする",
+    "- 売り込みの一言は、口下手な店主の代わりにお客さんへ売り込む秋田弁の一言。写真の説明ではなく、その品を手に取りたくなる言葉にする。店主が当たり前だと思って書いたこと（手で束ねた、何年も育てている、失敗してやり直した、朝に摘んだ）の中から、本人が気づいていない魅力を拾って全力で売り込む。30字以内、絵文字や記号なし。見ていない色や形や様子は作らない。店主の名前、住所、家族、お客さんのことは書かない。効能や値引きは言わない。mise_keshita.md の言葉と同じ言葉や言い換えは書かない",
+    "- 選んだ理由は、店主に向けた標準語の一言、30字以内（例：マルシェで聞かれやすい作り方の話がある）",
+    "- 一行の中の「 / 」は区切りなので、一言と理由の中には使わない",
+    "- mise.json、mise_shashin.md、mise_keshita.md、mise_ichiran.md は書き換えない",
+    "- 店主に見せる言葉はいりません。終わったら「済みました」とだけ書いてください",
+  ].join("\n");
+}
+
+// 手帳の「福ちゃんにおすすめを聞く」。一覧を作り直してから、おすすめ選びの会話を一つ起こす
+async function kouhoStart(req, res) {
+  const c = ids();
+  const running = await runningJob("kouho"); // 押し直しても二つ起こさない
+  if (running) return res.status(200).json({ job: running });
+  await rebuildIchiran(c.store);
+  const job = await client.beta.sessions.create({
+    agent: c.agent,
+    environment_id: c.environment,
+    budget: BUDGET,
+    title: "おすすめの写真",
+    metadata: { kind: "kouho" },
+    resources: [{ type: "memory_store", memory_store_id: c.store, access: "read_write", instructions: "店主のノート。" }],
+    initial_events: [{ type: "user.message", content: [{ type: "text", text: kouhoCue() }] }],
+  });
+  return res.status(200).json({ job: job.id });
+}
+
+// 福ちゃんのおすすめを読む。写真の場所（session, event, n）は手帳が写真を出すのに要る。marked は今「店に出す」の印が付いているか
+async function kouho(req, res) {
+  const { store } = ids();
+  const note = await findNote(store, KOUHO_PATH);
+  const full = note && await client.beta.memoryStores.memories.retrieve(note.id, { memory_store_id: store });
+  const { date, reason, rows } = checkKouho(full?.content ?? "");
+  const job = await runningJob("kouho");
+  res.setHeader("cache-control", "no-store");
+  if (!rows.length) return res.status(200).json({ date, reason, job, photos: [] });
+  const wanted = new Set(rows.map((r) => r.id));
+  const where = new Map((await scanPhotos(wanted)).map((p) => [p.id, p]));
+  const photos = rows.filter((r) => where.has(r.id)).map((r) => { // 一覧にない番号（消した投稿など）は返さない
+    const p = where.get(r.id);
+    return { id: r.id, session: p.session, event: p.event, n: p.n, say: r.say, why: r.why, marked: p.marked };
+  });
+  return res.status(200).json({ date, reason, job, photos });
 }
 
 // ---------- 投稿を消す ----------
@@ -915,6 +1068,9 @@ async function removePost(req, res) {
     }
   }
   if (removedPhotos.length) await editShashinNote(c.store, removedPhotos, []);
+  // 写真の一覧からも、消した投稿の写真を全部外す（印の有無に関係なく）
+  const allPhotos = touched.flatMap(({ s, parts }) => parts.flatMap((m) => (m.who === "owner" && m.photos ? Array.from({ length: m.photos }, (_, n) => photoIdOf(s.id, m.id, n)) : [])));
+  if (allPhotos.length) await editListNote(c.store, ICHIRAN_PATH, ICHIRAN_HEAD, allPhotos, []).catch((e) => console.error("ichiran remove", e.status));
 
   const parts = touched.flatMap((t) => t.parts);
   const since = parts.map((m) => m.at).filter(Boolean).sort()[0] || head.created_at;
@@ -945,7 +1101,7 @@ async function finishKeshi(s) {
   for await (const m of client.beta.memoryStores.memories.list(store, { view: "full" })) {
     if (m.type !== "memory") continue;
     current.add(m.memory_version_id);
-    if (m.path !== SHASHIN_PATH && pieces.some((t) => (m.content ?? "").includes(t))) left.push(m.path);
+    if (m.path !== SHASHIN_PATH && m.path !== ICHIRAN_PATH && pieces.some((t) => (m.content ?? "").includes(t))) left.push(m.path); // この二つは店主の言葉がそのまま載る手帳のノート
   }
   let redacted = 0;
   for await (const v of client.beta.memoryStores.memoryVersions.list(store, { "created_at[gte]": s.metadata.since })) {
@@ -982,7 +1138,7 @@ async function sweepKeshi() {
       if (++seen > 20) break;
       const late = Date.now() - Date.parse(s.created_at) > KESHI_SWEEP_AFTER;
       if (late && s.metadata?.kind === "keshi" && (await keshiEnded(s))) await finishKeshi(s);
-      if (late && s.metadata?.kind === "serifu" && (await keshiEnded(s))) await finishSerifu(s);
+      if (late && ["serifu", "kouho"].includes(s.metadata?.kind) && (await keshiEnded(s))) await finishSerifu(s);
     }
   } catch (e) {
     console.error("sweep", e.status);
@@ -1012,6 +1168,8 @@ export default async function handler(req, res) {
     if (action === "serifuredo" && req.method === "POST") return await serifuRedo(req, res);
     if (action === "serifujob" && req.method === "GET") return await serifuJob(req, res);
     if (action === "katazuke" && req.method === "POST") return await katazuke(req, res);
+    if (action === "kouho" && req.method === "POST") return await kouhoStart(req, res);
+    if (action === "kouho" && req.method === "GET") return await kouho(req, res);
     return res.status(404).json({ error: "unknown" });
   } catch (e) {
     console.error("techo", action, e.status, e.message); // 鍵は載らない（状態コードと文面だけ）
