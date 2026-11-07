@@ -4,8 +4,8 @@ import { miseOK, shopOK } from "./_claude.js";
 
 const MODEL = "gemini-3.8-flash-tts";
 const VOICE = "Laomedeia";
-// 演技指示は短い一言だけ前に置く（長い指示は読み上げられてしまうことがあった 11/7）
-const DIRECTION = "Say cheerfully and warmly, like a friendly shop cat: ";
+// 演技指示は付けない。長くても短くても読み上げられてしまった（11/7）。セリフそのものと Laomedeia の声だけで話す
+const DIRECTION = "";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });

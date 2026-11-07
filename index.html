@@ -353,7 +353,7 @@ let preparing = false;
 async function prepareVoices() {
   if (preparing) return;
   preparing = true;
-  const store = "caches" in window ? await caches.open("niwasaki-koe-2").catch(() => null) : null; // 一度作った声は開き直しても使う
+  const store = "caches" in window ? await caches.open("niwasaki-koe-3").catch(() => null) : null; // 一度作った声は開き直しても使う
   const wanted = [...linesOf("greet"), ...(mise.lines.chat || []), ...shots.map(shotSay), ...linesOf("bye"), ...FIXED.greet, ...FIXED.bye];
   for (const text of wanted) {
     if (voices.get(text)) continue;
