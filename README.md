@@ -2,7 +2,9 @@
 
 Built with Claude: Japan 2026 の提出作品です。小商いをする生産者のための Web アプリです。日々の作業を写真と一言で手帳に残すと、福ちゃんが覚えていきます。福ちゃんは、生産者が当たり前だと思って書いたことの中から魅力を拾います。売り場では古いタブレットの中の招き猫が、口下手な生産者の代わりにお客さんへ秋田弁で売り込みます。魅力を拾うのも、売り込みの一言を書くのも Claude です。
 
-<!-- デモ動画と画面写真はここに -->
+**デモ動画（2分58秒）**：https://youtu.be/yG1UF4Qiq4s
+
+[![福ちゃん デモ動画](https://img.youtube.com/vi/yG1UF4Qiq4s/hqdefault.jpg)](https://youtu.be/yG1UF4Qiq4s)
 
 ## なぜ
 
@@ -106,3 +108,7 @@ ANTHROPIC_API_KEY=... node agent/setup.mjs --start   # 止める時は --stop
 ## 作り方
 
 Claude Managed Agents に何を任せ、Claude Code でどう作ったかは [TSUKURIKATA.md](TSUKURIKATA.md) に書きました。Claude 以外の AI は、猫の読み上げの Gemini TTS だけです（Claude には声がないため）。
+
+## ライセンス
+
+MIT License（LICENSE ファイル）
