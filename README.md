@@ -2,9 +2,9 @@
 
 Built with Claude: Japan 2026 の提出作品です。小商いをする生産者のための Web アプリです。日々の作業を写真と一言で手帳に残すと、福ちゃんが覚えていきます。福ちゃんは、生産者が当たり前だと思って書いたことの中から魅力を拾います。売り場では古いタブレットの中の招き猫が、口下手な生産者の代わりにお客さんへ秋田弁で売り込みます。魅力を拾うのも、売り込みの一言を書くのも Claude です。
 
-**デモ動画（2分58秒）**：https://youtu.be/yG1UF4Qiq4s
+**デモ動画（2分58秒）**：https://youtu.be/mLB0qxMBjN8
 
-[![福ちゃん デモ動画](https://img.youtube.com/vi/yG1UF4Qiq4s/hqdefault.jpg)](https://youtu.be/yG1UF4Qiq4s)
+[![福ちゃん デモ動画](https://img.youtube.com/vi/mLB0qxMBjN8/hqdefault.jpg)](https://youtu.be/mLB0qxMBjN8)
 
 ## なぜ
 
